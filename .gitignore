@@ -1,0 +1,34 @@
+# --- Personal settings -------------------------------------------------------------
+# Your profile, groups and (optionally) API key. Copy config.example.yaml to config.yaml.
+config.yaml
+.env
+
+# --- Collected data (private: Facebook posts, names, phone numbers, analyses) --------
+apartments.db
+apartments.db-journal
+apartments.db-wal
+apartments.db-shm
+apartments.backup-*.db
+*.db
+pictures/
+
+# --- Exported results ----------------------------------------------------------------
+out.json
+out.txt
+results*.txt
+results*.json
+
+# --- Runtime files -------------------------------------------------------------------
+.scan.lock
+__pycache__/
+*.pyc
+*.log
+
+# --- Tools, editors, OS --------------------------------------------------------------
+.claude/
+.venv/
+venv/
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store

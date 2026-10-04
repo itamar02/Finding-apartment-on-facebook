@@ -1,0 +1,4 @@
+# Python packages for the project scripts (tested with Python 3.11).
+# browser-harness is installed separately with uv - see the README.
+anthropic>=0.104
+pyyaml>=6.0

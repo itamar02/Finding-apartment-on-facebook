@@ -1,0 +1,127 @@
+# ApartmentBot configuration TEMPLATE.
+#
+# Setup:  copy this file to config.yaml and edit the copy.
+#         config.yaml holds your personal settings (and maybe your API key), so it is
+#         listed in .gitignore and never committed. This template is.
+#
+# Everything user-specific lives in config.yaml, not in Python. Each entry under `users`
+# is an independent search profile, so friends can be added as extra entries.
+# Rents are monthly, in ILS. Times are minutes. Blank (null) values are allowed only
+# where a comment says so.
+
+app:
+  # Model used by analyze_posts.py. Approximate cost per post:
+  #   claude-haiku-4-5   ~$0.002 - 0.006   (fast, cheapest - the default)
+  #   claude-sonnet-5-5  ~$0.012 - 0.02    (stronger on subtle Hebrew wording; estimate)
+  #   claude-opus-5-5    ~$0.022 - 0.04    (most capable; estimate)
+  # Changing it does not re-analyze old posts; use analyze_posts.py --force for that.
+  ai_model: claude-haiku-4-5
+
+  # Where the Anthropic API key comes from (used only by analyze_posts.py):
+  #   source: env     -> read it from the environment variable named in env_var
+  #   source: config  -> use `value` below. Then keep config.yaml out of git (it is in
+  #                      .gitignore) and never share it.
+  api_key:
+    source: env
+    env_var: ANTHROPIC_API_KEY   # any variable name you like
+    value: ""                    # only used when source is "config", e.g. "sk-ant-..."
+
+  # true  = stop at the first dealbreaker, cheapest question first:
+  #         1. gate: "is it a rental offer?" + listing type, rules applied by code (~$0.001)
+  #         2. quick pass: decision + a few facts, rejection confirmed by code (~$0.002)
+  #         3. full extraction - only for posts that survive both
+  # false = always run the full extraction on every post (about 3x the cost).
+  stop_at_first_dealbreaker: true
+
+# The bot's own Chrome (separate from your normal Chrome). It keeps scanning while
+# minimized or behind other windows. Log in to Facebook in it once: python bot_chrome.py
+browser:
+  chrome_path: 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+  profile_dir: '%LOCALAPPDATA%\ApartmentBot\chrome-profile'   # the bot's logins/cookies live here
+  debug_port: 9333               # local port the scanner uses to control the bot Chrome
+
+# Listing photos. Only posts whose final decision is in save_for (for any user) get
+# their photos downloaded, into <folder>/<post date>_<post id>/.
+pictures:
+  folder: pictures
+  save_for: [PASS]               # add NEEDS_REVIEW to also keep photos of listings to check by hand
+
+# Facebook groups scanned by scan_facebook.py (shared by all users). You must be a member
+# of each one (public groups can be read without joining, private ones cannot).
+# id is the number or name in the group's URL: facebook.com/groups/<id>/
+# EDIT: replace these examples with your own groups.
+facebook:
+  groups:
+    - {id: "111111111111111", name: "Example - apartments for rent in my city"}
+    - {id: "example.roommates", name: "Example - roommates in my city"}
+
+users:
+  - id: me                         # EDIT: any short name; used with --user when several users exist
+    display_name: Me
+
+    profile:
+      age: 30                      # EDIT: used for roommate age requirements
+      gender: male                 # EDIT: male | female - used for roommate gender requirements
+      notes: ""                    # e.g. "student, works from home 2 days a week"
+
+    listing:
+      max_post_age_days: 7         # EDIT: older posts are rejected by code, and scans stop there
+      # whole_apartment  - renting an entire apartment
+      # roommate_search  - existing tenants looking for a new roommate (long-term)
+      # room_replacement - a leaving tenant hands over their room in a shared flat
+      # sublet           - temporary rental (a few weeks/months)
+      allowed_types: [whole_apartment, roommate_search, room_replacement]   # EDIT
+      search_cities: [Tel Aviv]    # EDIT: listings elsewhere are rejected
+
+    budget:
+      preferred_max_rent: 5000     # EDIT: above this is allowed but worse
+      absolute_max_rent: 6500      # EDIT: above this is rejected
+      # What the absolute max is compared against:
+      #   rent                  - the rent figure alone
+      #   rent_plus_known_costs - rent + stated monthly extras (arnona, vaad, bills)
+      absolute_max_applies_to: rent_plus_known_costs
+
+    areas:
+      allowed: []                  # empty = any area within search_cities
+      preferred: []                # soft: a plus, e.g. [Florentin]
+      less_preferred: []           # soft: acceptable but a disadvantage (never rejected for this)
+      excluded: []                 # hard: rejected, e.g. [Bat Yam]
+      notes: ""
+
+    broker:
+      policy: allow                # allow | avoid (worse, but not rejected) | reject
+
+    roommates:
+      preferred_age_min: 22
+      preferred_age_max: 35
+      max_roommates: 3             # other tenants besides you
+      # How to treat gender wording in roommate listings:
+      #   strict requirement for the other gender ("only female roommate") -> always REJECT
+      #   preference for the other gender ("preference for a woman")       -> this setting
+      gender_preference_mismatch: needs_review   # needs_review | reject | ignore
+
+    features:
+      # Rejected only if the post says the feature is missing; not mentioned = kept
+      # (it shows up under "missing information" in the results).
+      required: []                 # e.g. [living room, mamad]
+      nice_to_have: [balcony, elevator]
+      dealbreakers: []             # e.g. [basement apartment]
+
+    move_in:
+      earliest: null               # ISO date like 2026-11-01, or null
+      latest: null
+
+    commute:
+      # Stored for a later commute stage; not used for filtering yet. All values may be null.
+      destination:
+        name: null
+        address: null
+      preferred_max_minutes: null
+      absolute_max_minutes: null
+      preferred_max_walking_minutes: null
+      preferred_max_transfers: null
+      modes: [public_transit]
+
+    # Anything else the AI should take into account, in plain language (any language).
+    free_text: |
+      Example: I prefer a quiet apartment and don't mind an older building.
