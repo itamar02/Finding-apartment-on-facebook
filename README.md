@@ -262,7 +262,7 @@ then the four commands it prints. In detail:
    ```
    `serve` prints the app's address, like `https://my-pc.tail1234.ts.net`. It only works on
    your own devices; the server itself listens only on the PC (`127.0.0.1`).
-3. **Start the server**: `python app_server.py` (or double-click `run_app.cmd`). The first
+3. **Start the server**: `python app_server.py` (or double-click `run_app.cmd`, which also starts it again if it ever stops and writes `app_server.log`). The first
    start upgrades the database (with a backup, as always). On a brand new install with no
    database yet this just creates an empty one; run `python scan_facebook.py` to fill it.
 4. **Log in from the phone**: open the address from step 2 on the phone. On the PC run
