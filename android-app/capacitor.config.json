@@ -1,0 +1,14 @@
+{
+  "appId": "app.apartmentbot",
+  "appName": "ApartmentBot",
+  "webDir": "www",
+  "backgroundColor": "#0b1120",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": ["*.ts.net"],
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

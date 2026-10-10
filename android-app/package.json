@@ -1,0 +1,16 @@
+{
+  "name": "apartmentbot-android",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Android shell (Capacitor) around the ApartmentBot phone app. See ../README.md, 'Android app (APK)'.",
+  "scripts": {
+    "sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}

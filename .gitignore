@@ -32,6 +32,12 @@ uploads/
 web/node_modules/
 web/dist/
 
+# --- Android app: built from android-app/ by build_apk.py -------------------------------
+dist/
+android-app/node_modules/
+android-app/android/
+android-app/www/config.js
+
 # --- Local watchdog (kept private for now) ------------------------------------------
 watchdog/
 

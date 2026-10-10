@@ -274,6 +274,32 @@ then the four commands it prints. In detail:
 5. **Install the app**: Android Chrome: menu > *Add to home screen* / *Install app*. iPhone
    Safari: Share > *Add to Home Screen*.
 
+### Android app (APK)
+
+If you prefer an app you install from a file over adding the web page to the home screen,
+`build_apk.py` builds a small Android shell (Capacitor, in `android-app/`) that opens the same
+app on your PC. Nothing is stored in the APK, so you only rebuild it when `android-app/`
+changes. Everything above (Tailscale, the server, pairing) is still needed.
+
+Needs on the PC: Node.js 20+, a JDK 17-21 (Android Studio's bundled one is found
+automatically; otherwise `winget install Microsoft.OpenJDK.21`) and the Android SDK with
+build-tools and a platform and its licenses accepted (installing Android Studio does this;
+set `ANDROID_HOME` if it is somewhere unusual). Then:
+
+```
+python build_apk.py --url https://<your-pc>.<tailnet>.ts.net
+```
+
+(the address `tailscale serve` printed; leave `--url` out and the app asks for it on first
+start). The first build downloads Gradle and takes a few minutes. The result is
+`dist/ApartmentBot.apk` (git-ignored), a debug build for your own phone: copy it to the phone,
+open it, and allow installs from that source when Android asks. Log in with
+`python app_server.py --pair` as for the web page.
+
+Limits of the APK version: the Web Push notifications don't work inside it (use the Telegram
+channel, or the web-page version for push); sharing a WhatsApp chat *to* the app isn't set up
+(paste it or upload the exported `.txt`); the PC and the phone's Tailscale app must be on.
+
 ### Start it automatically with Windows
 
 ```
@@ -562,6 +588,7 @@ export_results.py       write all stored results to a text or JSON report
 app_server.py           the phone app's server (API + built web app)
 setup_app.py            one-command setup of the phone app (packages, web build, checks)
 run_app.cmd             start the server by double-click; register_autostart.ps1 starts it at login
+build_apk.py            build the Android app (dist/ApartmentBot.apk) from android-app/
 discover_groups.py      find groups (yours + search results); fb_harness_discover.py runs in the browser
 why.py                  explain a stored decision
 reject.py               reject (or un-reject) listings by hand - the "human rejected" pile

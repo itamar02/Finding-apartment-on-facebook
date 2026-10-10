@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>דירות</title>
+<style>
+  :root { --bg:#f8fafc; --text:#0f172a; --muted:#64748b; --surface:#fff; --border:#e2e8f0; --accent:#0284c7; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0b1120; --text:#e5e7eb; --muted:#94a3b8; --surface:#111827; --border:#273449; --accent:#38bdf8; } }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px system-ui,sans-serif; min-height:100vh; display:flex;
+         flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:24px 16px; text-align:center; box-sizing:border-box; }
+  input, button { font:inherit; border-radius:10px; border:1px solid var(--border); padding:10px 14px; background:var(--surface); color:var(--text); }
+  input { width:100%; max-width:420px; direction:ltr; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .muted { color:var(--muted); font-size:.9rem; max-width:420px; }
+  .error { color:#dc2626; }
+</style>
+</head>
+<body>
+  <h2>דירות</h2>
+  <p id="msg" class="muted">מתחבר למחשב…</p>
+  <form id="form" hidden>
+    <p class="muted">הקלידו את כתובת האפליקציה (מ-<code>tailscale serve</code>), למשל:</p>
+    <input id="url" inputmode="url" autocapitalize="off" autocomplete="off" placeholder="https://my-pc.tail1234.ts.net">
+    <p><button class="primary">שמור והתחבר</button></p>
+  </form>
+  <p><button id="change" hidden>שינוי כתובת</button> <button id="retry" hidden>נסה שוב</button></p>
+  <p class="muted" id="hint" hidden>המחשב צריך להיות דולק, והאפליקציה של Tailscale בטלפון מחוברת.</p>
+<script src="config.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const KEY = "apartmentbot_url";
+  const saved = () => { try { return localStorage.getItem(KEY) || window.APP_URL || ""; } catch (e) { return window.APP_URL || ""; } };
+
+  function normalize(u) {
+    u = (u || "").trim();
+    if (!u) return "";
+    if (!/^https?:\/\//i.test(u)) u = "https://" + u;
+    return u.replace(/\/+$/, "") + "/";
+  }
+
+  async function go(url) {
+    $("form").hidden = true; $("retry").hidden = true; $("hint").hidden = true;
+    $("msg").className = "muted"; $("msg").textContent = "מתחבר למחשב…";
+    try {
+      const ctl = new AbortController(); setTimeout(() => ctl.abort(), 12000);
+      await fetch(url, { mode: "no-cors", signal: ctl.signal, cache: "no-store" });
+    } catch (e) {
+      $("msg").className = "error"; $("msg").textContent = "אי אפשר להגיע למחשב.";
+      $("hint").hidden = false; $("retry").hidden = false; $("change").hidden = false;
+      return;
+    }
+    location.replace(url);
+  }
+
+  function ask() {
+    $("msg").textContent = ""; $("form").hidden = false; $("url").value = saved();
+  }
+
+  $("form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const url = normalize($("url").value);
+    if (!url) return;
+    try { localStorage.setItem(KEY, url); } catch (err) {}
+    go(url);
+  });
+  $("retry").onclick = () => go(normalize(saved()));
+  $("change").onclick = () => { $("change").hidden = true; ask(); };
+
+  const first = normalize(saved());
+  first ? go(first) : ask();
+</script>
+</body>
+</html>
