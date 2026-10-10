@@ -324,6 +324,12 @@ it). `tailscale serve --bg` survives restarts by itself.
 - **My status**: a pipeline separate from the AI verdict. The list (names, colors, order, which
   ones ask for a note such as *Needs details*) is editable in Settings. Every change is kept in
   a history. *Not relevant* is the same as `reject.py`: setting either one sets both.
+- **Overruling the AI**: the AI's verdict (passed / needs review / rejected) is never changed
+  - it stays on the card, dimmed as "AI: ..." once you have decided. Your decision is your
+  own status: 👍 on a card sets *Interested*, 👎 sets *Not relevant* (tap again to undo; the
+  status picker has the rest). Listings marked *Not relevant* or *Taken* are hidden from the
+  feed unless you tick "show those too" in the filter, so to rescue something the AI rejected,
+  filter on *Rejected* and tap 👍. Your decisions also feed the suggestions (see below).
 - **Board**: columns by status. **Notes**: free text on any listing.
 - **Groups**: tick the Facebook groups to scan. The list lives in the database now;
   `facebook.groups` in `config.yaml` only fills it the first time. *Find groups* runs

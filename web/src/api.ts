@@ -235,6 +235,7 @@ export interface Filters {
   area?: string;
   since?: string;
   include_old: boolean;
+  show_closed?: boolean;   // also show listings I marked not relevant / taken
   has_phone?: boolean;
   source?: string;
   sort: "newest" | "price_asc" | "price_desc";
@@ -317,6 +318,10 @@ export function filtersToQuery(f: Filters, offset: number, limit: number): strin
   const q = new URLSearchParams();
   f.decision.forEach((d) => q.append("decision", d));
   f.status.forEach((s) => q.append("status", s));
+  if (!f.show_closed && f.status.length === 0) {
+    q.append("exclude_status", "not_relevant");
+    q.append("exclude_status", "taken");
+  }
   f.group.forEach((g) => q.append("group", g));
   if (f.price_min != null) q.set("price_min", String(f.price_min));
   if (f.price_max != null) q.set("price_max", String(f.price_max));

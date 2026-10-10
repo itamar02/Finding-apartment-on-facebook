@@ -200,6 +200,7 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
     @app.get("/api/posts")
     def posts(db=Depends(get_db),
               decision: list[str] = Query(default=[]), status: list[str] = Query(default=[]),
+              exclude_status: list[str] = Query(default=[]),
               group: list[str] = Query(default=[]), price_min: Optional[int] = None,
               price_max: Optional[int] = None, area: Optional[str] = None, since: Optional[str] = None,
               until: Optional[str] = None, include_old: bool = False, has_phone: Optional[bool] = None,
@@ -208,7 +209,7 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
         if sort not in feed.SORTS:
             raise HTTPException(400, f"sort must be one of {', '.join(feed.SORTS)}")
         return feed.query_posts(db, cfg, uid, decisions=decision or None, statuses_=status or None,
-                                groups=group or None, price_min=price_min, price_max=price_max, area=area,
+                                exclude_statuses=exclude_status or None, groups=group or None, price_min=price_min, price_max=price_max, area=area,
                                 since=since, until=until, include_old=include_old, has_phone=has_phone,
                                 status_source=source, sort=sort, offset=offset, limit=limit)
 

@@ -37,13 +37,18 @@ export default function PostCard({ card }: { card: Card }) {
   const [expanded, setExpanded] = useState(false);
   const [picking, setPicking] = useState(false);
   const decision = card.ai?.decision ?? "PENDING";
+  const mine = card.status?.status;
+  const liked = mine === "interested" || mine === "top_candidate";
+  const disliked = mine === "not_relevant";
+  const def = app.statusOf(mine);
   const chips = factChips(card);
   const long = card.text.length > 280;
 
   return (
-    <article className="card">
+    <article className="card" style={def ? { borderInlineStartColor: def.color, borderInlineStartWidth: 4 } : undefined}>
       <div className="card-head">
-        <span className="badge" style={{ background: DECISION_COLOR[decision] }}>
+        <span className={"badge" + (mine ? " dim" : "")} style={{ background: DECISION_COLOR[decision] }} title="ההחלטה של ה-AI">
+          {mine ? "AI: " : ""}
           {DECISION_LABEL[decision]}
         </span>
         <StatusChip status={card.status} onClick={() => setPicking(true)} />
@@ -84,6 +89,22 @@ export default function PostCard({ card }: { card: Card }) {
       <div className="card-foot">
         <span className="muted small">{card.author ?? "אנונימי"}</span>
         <div className="row">
+          <button
+            className={"btn vote" + (liked ? " on-good" : "")}
+            aria-label="מתאים לי"
+            title="מתאים לי (הקשה נוספת מבטלת)"
+            onClick={() => change(card.post_id, liked ? null : "interested")}
+          >
+            👍
+          </button>
+          <button
+            className={"btn vote" + (disliked ? " on-bad" : "")}
+            aria-label="לא מתאים לי"
+            title="לא רלוונטי (הקשה נוספת מבטלת)"
+            onClick={() => change(card.post_id, disliked ? null : "not_relevant")}
+          >
+            👎
+          </button>
           <ContactButton card={card} />
           <a className="btn" href={card.url} target="_blank" rel="noopener noreferrer">
             לפוסט

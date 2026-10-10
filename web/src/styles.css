@@ -983,3 +983,24 @@ blockquote {
   flex-wrap: wrap;
   margin-bottom: 12px;
 }
+
+.badge.dim {
+  opacity: 0.55;
+  font-weight: 400;
+}
+
+.btn.vote {
+  min-width: 44px;
+  padding: 8px 10px;
+  font-size: 1.1rem;
+}
+
+.btn.vote.on-good {
+  background: var(--pass);
+  border-color: var(--pass);
+}
+
+.btn.vote.on-bad {
+  background: var(--reject);
+  border-color: var(--reject);
+}

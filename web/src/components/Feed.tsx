@@ -82,6 +82,7 @@ function countActive(f: Filters): number {
   let n = 0;
   if (f.decision.join() !== DEFAULT_FILTERS.decision.join()) n++;
   if (f.status.length) n++;
+  if (f.show_closed) n++;
   if (f.group.length) n++;
   if (f.price_min != null || f.price_max != null) n++;
   if (f.area) n++;
@@ -125,6 +126,11 @@ function FilterSheet({ filters, onApply, onClose }: { filters: Filters; onApply:
             </button>
           ))}
         </div>
+
+        <label className="check small">
+          <input type="checkbox" checked={!!f.show_closed} onChange={(e) => setF({ ...f, show_closed: e.target.checked })} />
+          הצג גם מודעות שסימנתי ״לא רלוונטי״ או ״נתפס״
+        </label>
 
         <label className="label">מי קבע את הסטטוס</label>
         <div className="pills">

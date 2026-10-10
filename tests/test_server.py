@@ -125,3 +125,10 @@ def test_server_starts_with_scheduler(db, cfg, tmp_path):
     with TestClient(app) as c:                     # runs the startup / shutdown hooks
         assert c.get("/").status_code == 503
         assert app.state.scheduler._thread.is_alive()
+
+
+def test_feed_can_hide_closed_statuses(client):
+    ids = lambda q: [p["post_id"] for p in client.get("/api/posts?" + q).json()["items"]]
+    assert ids("") == ["1001", "1002", "1003"]
+    assert ids("exclude_status=not_relevant") == ["1001", "1002"]          # 1003 was marked not relevant
+    assert ids("exclude_status=not_relevant&status=none") == ["1001", "1002"]

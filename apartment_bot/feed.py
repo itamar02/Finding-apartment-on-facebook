@@ -35,7 +35,7 @@ def group_names(db, cfg):
     return groups_mod.names(db, cfg)
 
 
-def query_posts(db, cfg, user_id, *, decisions=None, statuses_=None, groups=None, price_min=None,
+def query_posts(db, cfg, user_id, *, decisions=None, statuses_=None, exclude_statuses=None, groups=None, price_min=None,
                 price_max=None, area=None, since=None, until=None, include_old=False, has_phone=None,
                 status_source=None, sort="newest", offset=0, limit=30, post_ids=None):
     """Filtered, sorted cards. Returns {"total": n, "items": [card, ...]}.
@@ -70,6 +70,8 @@ def query_posts(db, cfg, user_id, *, decisions=None, statuses_=None, groups=None
         if decisions and decision not in decisions:
             continue
         if statuses_ and (r["status"] or "none") not in statuses_:
+            continue
+        if exclude_statuses and r["status"] in exclude_statuses:
             continue
         if status_source and r["status_source"] != status_source:
             continue
