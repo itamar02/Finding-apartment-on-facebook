@@ -163,7 +163,11 @@ Photos are feed-size (around 600 px wide): good for a first look, not full resol
 ```
 python export_results.py results.txt    # readable report
 python export_results.py results.json   # same content as JSON
+python export_results.py results.txt --all-dates   # include listings older than the recent window
 ```
+
+Only recent listings are exported by default (posted within the recent window, see *Phone
+app*); `--all-dates` exports everything.
 
 Order: **PASSED**, then **NEEDS REVIEW**, then a `-----` line, then **HUMAN REJECTED**
 (listings you rejected by hand) and **REJECTED** (automatic; shown compactly). Each listing has the decision and reason, the link, the poster's name and
@@ -211,6 +215,76 @@ Post 3289385131257313: REJECT
 Hebrew is never printed raw to the terminal (Windows consoles reverse it); it shows as
 `[Hebrew]`. The original text is stored unchanged - use `--json`, an export file, or a
 SQLite viewer to read it.
+
+## Phone app
+
+A phone app (installable web app, Hebrew, works in light and dark mode) shows the listings as
+a feed and a board, keeps **your own status** for each listing (new, interested, contacted,
+meeting scheduled, ...) next to the AI's verdict, and opens WhatsApp with a ready opening
+message. The PC is the server: when it is off, the app doesn't work. Nothing is copied to a
+cloud.
+
+### One-time setup
+
+1. **Packages**: `pip install -r requirements.txt` (adds FastAPI and uvicorn), and
+   [Node.js](https://nodejs.org) 20 or newer to build the app once:
+   ```
+   cd web
+   npm install
+   npm run build
+   cd ..
+   ```
+   Run `npm run build` again after pulling app changes.
+2. **Tailscale** (private network between your PC and phone, with HTTPS - needed to install
+   the app and, later, for notifications): install Tailscale on the PC and on the phone and
+   log in to the same account on both. In the Tailscale admin console, under DNS, turn on
+   **MagicDNS** and **HTTPS certificates**. Then, on the PC, once:
+   ```
+   tailscale serve --bg 8787
+   ```
+   It prints the app's address, like `https://my-pc.tail1234.ts.net`. This address only works
+   on your own devices; the server itself listens only on the PC (`127.0.0.1`).
+3. **Start the server**:
+   ```
+   python app_server.py
+   ```
+   The first start upgrades the database (with a backup, as always).
+4. **Log in from the phone**: open the address from step 2 on the phone. On the PC run
+   ```
+   python app_server.py --pair
+   ```
+   and type the 8-digit code into the app (valid 10 minutes, one use). The phone stays logged
+   in. `python app_server.py --reset-token` logs out every phone.
+5. **Install the app**: Android Chrome: menu > *Add to home screen* / *Install app*. iPhone
+   Safari: Share > *Add to Home Screen*.
+
+### Start it automatically with Windows
+
+Task Scheduler > *Create Task*: trigger *At log on*; action *Start a program* with program
+`pythonw.exe` (or the full path to it), arguments `app_server.py`, and *Start in* set to this
+folder. `tailscale serve --bg` already survives restarts.
+
+### What's in it
+
+- **Feed**: one card per listing with the AI verdict and reason, rent / area / rooms / type /
+  move-in, photos, the text, the group, the post's age and a link to the Facebook post.
+  Filters: AI decision, my status, who set it (me / GPT / system), group, price, area, date,
+  has phone. Sort by newest or price. Listings older than the recent window (default: the
+  largest `listing.max_post_age_days`; changeable in Settings) are hidden unless you ask.
+- **WhatsApp button** when the post has a mobile number or a WhatsApp link: opens a chat with a
+  prefilled message from the template in Settings (placeholders `{name}` `{area}` `{street}`
+  `{group}` `{price}`; a part in `[square brackets]` is left out when its value is unknown).
+  Tapping it marks the listing *Contacted*, with Undo. Without a phone it opens the poster's
+  Facebook profile. Nothing is ever sent automatically.
+- **My status**: a pipeline separate from the AI verdict. The list (names, colors, order, which
+  ones ask for a note such as *Needs details*) is editable in Settings. Every change is kept in
+  a history. *Not relevant* is the same as `reject.py`: setting either one sets both.
+- **Board**: columns by status. **Notes**: free text on any listing.
+
+### Developing the app
+
+`python app_server.py --insecure-cookie` in one terminal and `cd web && npm run dev` in
+another; open http://localhost:5173. Tests: `python -m pytest`.
 
 ## Configuration
 
@@ -311,6 +385,7 @@ key gives a plain message saying which variable or setting to fix.
 | `scan_runs` | `scan_facebook.py` | One row per group per scan: counts, stop reason, sort label seen, error |
 | `post_images` | `scan_facebook.py`, `apartment_bot/pictures.py` | Photo links per post (`post_id`, `idx`, `url`, `alt`, `more_hidden`) and, once downloaded, `local_path` / `downloaded_at` / `download_error` |
 | `human_decisions` | `reject.py` | Listings you rejected by hand: `post_id`, `user_id`, `decision`, `note`, `decided_at` |
+| `statuses`, `post_status`, `post_status_history`, `post_notes`, `post_seen`, `app_settings` | the phone app, `reject.py` | Your own status per listing (current + append-only history, source `human` / `gpt` / `system`), the editable status list, notes, which listings you opened, app settings |
 | `post_analyses` | `analyze_posts.py` | One row per analysis attempt: AI decision/rule/reason, final decision/rule/reason, `decided_by`, `facts_json`, `hard_rules_json`, `raw_response_json`, `model`, `pipeline_version`, `config_hash`, token counts, `cost_usd`, `analyzed_at`, `status` (`ok`/`error`), `error` |
 
 - Analyses never overwrite each other; the latest `ok` row per post and user is current.
@@ -358,6 +433,7 @@ scan_facebook.py        scanner entry point: SQLite + runs the browser script
 fb_harness_scan.py      browser script executed inside browser-harness (not plain Python)
 analyze_posts.py        AI analysis entry point
 export_results.py       write all stored results to a text or JSON report
+app_server.py           the phone app's server (API + built web app)
 why.py                  explain a stored decision
 reject.py               reject (or un-reject) listings by hand - the "human rejected" pile
 bot_chrome.py           start / show the bot's own Chrome (log in to Facebook there once)
@@ -377,10 +453,19 @@ apartment_bot/
   contacts.py           poster profile link, phone numbers and WhatsApp links (plain code)
   report.py             build and write the results report
   display.py            terminal-safe formatting (Hebrew handling)
+  statuses.py           my status per listing, its history and the editable status list
+  feed.py               listing cards for the app (filters, sorting, photos)
+  outreach.py           WhatsApp link and opening-message template
+  settings.py           app settings (app_settings table)
+  auth.py               app login: token + one-time pairing code
+  server.py             FastAPI routes
+web/                    the phone app (React + Vite + TypeScript); build with npm run build
+tests/                  python -m pytest
 ```
 
 Created at run time and git-ignored: `apartments.db` (+ backups), `pictures/`, exported
-`results*.txt` / `results*.json` / `out.*`, `.scan.lock`.
+`results*.txt` / `results*.json` / `out.*`, `.scan.lock`, `secrets/` (the app's login token),
+`uploads/`, `web/node_modules/`, `web/dist/`.
 
 ## Extending
 

@@ -24,6 +24,12 @@ __pycache__/
 *.pyc
 *.log
 
+# --- Phone app: login token, keys and your own uploads stay on this PC ---------------
+secrets/
+uploads/
+web/node_modules/
+web/dist/
+
 # --- Local watchdog (kept private for now) ------------------------------------------
 watchdog/
 

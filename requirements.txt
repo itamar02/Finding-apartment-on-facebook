@@ -2,3 +2,8 @@
 # browser-harness is installed separately with uv - see the README.
 anthropic>=0.104
 pyyaml>=6.0
+# Phone app server (app_server.py)
+fastapi>=0.115
+uvicorn>=0.30
+# Tests (python -m pytest)
+pytest>=8

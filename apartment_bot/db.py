@@ -74,12 +74,90 @@ MIGRATIONS = [
         PRIMARY KEY (post_id, user_id)
     );
     """,
+    # 3 -> 4: the phone app. "My status" is a pipeline separate from the AI verdict (which
+    # stays derived from post_analyses). Statuses are a table so the app can edit them.
+    # Existing hand rejections become "not relevant" (source human); human_decisions stays
+    # and is kept in sync by statuses.py, so reject.py / why.py / exports keep working.
+    """
+    CREATE TABLE statuses (
+        key        TEXT PRIMARY KEY,           -- stable id; the label can be renamed
+        label      TEXT NOT NULL,
+        color      TEXT NOT NULL,
+        sort_order INTEGER NOT NULL,
+        needs_note INTEGER NOT NULL DEFAULT 0, -- the app asks for a note (e.g. what to ask)
+        built_in   INTEGER NOT NULL DEFAULT 0  -- built-in keys have meaning in code; can't be deleted
+    );
+    INSERT INTO statuses (key, label, color, sort_order, needs_note, built_in) VALUES
+        ('new',               'חדש',          '#64748b', 10,  0, 1),
+        ('interested',        'מעניין',        '#0ea5e9', 20,  0, 1),
+        ('needs_details',     'צריך פרטים',    '#a855f7', 30,  1, 1),
+        ('contacted',         'פניתי',         '#f59e0b', 40,  0, 1),
+        ('awaiting_reply',    'מחכה לתשובה',   '#eab308', 50,  0, 1),
+        ('meeting_scheduled', 'נקבעה פגישה',   '#22c55e', 60,  0, 1),
+        ('visited',           'ביקרתי',        '#14b8a6', 70,  0, 1),
+        ('top_candidate',     'מועמד מוביל',   '#ec4899', 80,  0, 1),
+        ('not_relevant',      'לא רלוונטי',    '#6b7280', 90,  0, 1),
+        ('taken',             'נתפס',          '#374151', 100, 0, 1);
+    CREATE TABLE post_status (
+        post_id    TEXT NOT NULL,
+        user_id    TEXT NOT NULL,
+        status     TEXT NOT NULL REFERENCES statuses(key),
+        note       TEXT,
+        source     TEXT NOT NULL CHECK (source IN ('human', 'gpt', 'system')),
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (post_id, user_id)
+    );
+    CREATE INDEX idx_post_status_status ON post_status(user_id, status);
+    CREATE TABLE post_status_history (     -- append-only; status NULL = status cleared
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        post_id         TEXT NOT NULL,
+        user_id         TEXT NOT NULL,
+        status          TEXT,
+        note            TEXT,
+        source          TEXT NOT NULL,
+        previous_status TEXT,
+        previous_note   TEXT,
+        changed_at      TEXT NOT NULL
+    );
+    CREATE INDEX idx_status_history_post ON post_status_history(post_id, user_id, id);
+    CREATE TABLE post_notes (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        post_id    TEXT NOT NULL,
+        user_id    TEXT NOT NULL,
+        body       TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    CREATE INDEX idx_post_notes_post ON post_notes(post_id, user_id);
+    CREATE TABLE post_seen (               -- opened in the app (used for "post edited" alerts)
+        post_id        TEXT NOT NULL,
+        user_id        TEXT NOT NULL,
+        first_seen_at  TEXT NOT NULL,
+        last_seen_at   TEXT NOT NULL,
+        PRIMARY KEY (post_id, user_id)
+    );
+    CREATE TABLE app_settings (
+        key        TEXT PRIMARY KEY,
+        value_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    INSERT INTO post_status (post_id, user_id, status, note, source, updated_at)
+        SELECT post_id, user_id, 'not_relevant', note, 'human', decided_at
+        FROM human_decisions WHERE decision = 'REJECT';
+    INSERT INTO post_status_history (post_id, user_id, status, note, source, changed_at)
+        SELECT post_id, user_id, 'not_relevant', note, 'human', decided_at
+        FROM human_decisions WHERE decision = 'REJECT';
+    """,
 ]
 
 
-def connect(path=DB_PATH):
-    """Open the database with dict-like rows and foreign keys enforced."""
-    db = sqlite3.connect(path)
+def connect(path=DB_PATH, check_same_thread=True):
+    """Open the database with dict-like rows and foreign keys enforced.
+
+    The scanner, the analysis and the app server can write at the same time, so a writer
+    waits up to 30 seconds for another one's transaction instead of failing at once.
+    """
+    db = sqlite3.connect(path, timeout=30, check_same_thread=check_same_thread)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA foreign_keys = ON")
     return db

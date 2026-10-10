@@ -1,10 +1,13 @@
 """Decisions made by the human: listings rejected by hand ("human rejected" pile).
 
 Stored in `human_decisions`, separate from the AI analyses, so re-running the analysis
-never touches them. A human rejection wins over every automatic decision.
+never touches them. A human rejection wins over every automatic decision. The phone app's
+status "not relevant" is the same thing; both sides are kept in sync (see statuses.py).
 """
 import re
 from datetime import datetime
+
+from . import statuses
 
 
 def parse_post_id(text):
@@ -24,15 +27,22 @@ def reject(db, user_id, post_ids, note=None):
                 continue
             db.execute("INSERT OR REPLACE INTO human_decisions (post_id, user_id, decision, note, decided_at)"
                        " VALUES (?, ?, 'REJECT', ?, ?)", (pid, user_id, note, now))
+            statuses.record(db, user_id, pid, statuses.NOT_RELEVANT, note, "human", now)
             done.append(pid)
     return done, unknown
 
 
 def undo(db, user_id, post_ids):
     """Remove human rejections; the listings return to their automatic decision. Returns removed count."""
+    removed = 0
     with db:
-        return sum(db.execute("DELETE FROM human_decisions WHERE post_id = ? AND user_id = ?",
-                              (pid, user_id)).rowcount for pid in post_ids)
+        for pid in post_ids:
+            n = db.execute("DELETE FROM human_decisions WHERE post_id = ? AND user_id = ?", (pid, user_id)).rowcount
+            mine = statuses.current(db, user_id, pid)
+            if n and mine and mine["status"] == statuses.NOT_RELEVANT:
+                statuses.record(db, user_id, pid, None, None, "human")
+            removed += n
+    return removed
 
 
 def rejected(db, user_id):

@@ -1,0 +1,92 @@
+import { useState } from "react";
+import type { Card } from "../api";
+import { useApp } from "../App";
+import { age, DECISION_COLOR, DECISION_LABEL, factChips } from "../format";
+import StatusPicker, { StatusChip, useStatusActions } from "./StatusPicker";
+import Gallery from "./Gallery";
+
+export function ContactButton({ card }: { card: Card }) {
+  const { contact } = useStatusActions();
+  const a = card.action;
+  if (a.kind === "none" || !a.url) return null;
+  return (
+    <button className={"btn " + (a.kind === "whatsapp" ? "whatsapp" : "")} onClick={() => contact(card.post_id, a.url!, card.status)}>
+      {a.kind === "whatsapp" ? "WhatsApp" : "פרופיל פייסבוק"}
+    </button>
+  );
+}
+
+export default function PostCard({ card }: { card: Card }) {
+  const app = useApp();
+  const { change } = useStatusActions();
+  const [expanded, setExpanded] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const decision = card.ai?.decision ?? "PENDING";
+  const chips = factChips(card);
+  const long = card.text.length > 280;
+
+  return (
+    <article className="card">
+      <div className="card-head">
+        <span className="badge" style={{ background: DECISION_COLOR[decision] }}>
+          {DECISION_LABEL[decision]}
+        </span>
+        <StatusChip status={card.status} onClick={() => setPicking(true)} />
+        <span className="muted small grow-end">
+          {card.group_name} · {age(card.posted_at ?? card.first_seen_at)}
+        </span>
+      </div>
+
+      {chips.length > 0 && (
+        <div className="facts">
+          {chips.map((c) => (
+            <span key={c} className="fact" dir="auto">
+              {c}
+            </span>
+          ))}
+        </div>
+      )}
+      {card.ai?.reason && (
+        <p className="reason clamp3" dir="auto">
+          {card.ai.reason}
+        </p>
+      )}
+      {card.status?.note && <p className="status-note">📝 {card.status.note}</p>}
+
+      <p className={"post-text" + (expanded || !long ? "" : " clamped")} dir="auto">
+        {card.text}
+      </p>
+      {long && (
+        <button className="link" onClick={() => setExpanded(!expanded)}>
+          {expanded ? "פחות" : "עוד"}
+        </button>
+      )}
+
+      {card.photos.items.length > 0 && <Gallery photos={card.photos} />}
+
+      <div className="card-foot">
+        <span className="muted small">{card.author ?? "אנונימי"}</span>
+        <div className="row">
+          <ContactButton card={card} />
+          <a className="btn" href={card.url} target="_blank" rel="noopener noreferrer">
+            לפוסט
+          </a>
+          <button className="btn" onClick={() => app.openPost(card.post_id)}>
+            פרטים{card.notes_count ? ` (${card.notes_count})` : ""}
+          </button>
+        </div>
+      </div>
+
+      {picking && (
+        <StatusPicker
+          current={card.status}
+          onClose={() => setPicking(false)}
+          onPick={(s, note) => {
+            setPicking(false);
+            change(card.post_id, s, note);
+          }}
+        />
+      )}
+    </article>
+  );
+}
