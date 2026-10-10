@@ -67,14 +67,28 @@ TS_ANCHOR_FN = r"""function tsAnchor(p) {
 
 EXTRACT_JS = r"""(() => {
   %s
+  // Facebook draws emoji as <img alt="the emoji" src=".../emoji.php/...">, which innerText
+  // skips. Put each alt text next to its image for the moment of reading, then remove it
+  // again (nothing is left behind in the page). Only emoji images: photos have their own alt.
+  const textOf = e => {
+    const added = [];
+    for (const img of e.querySelectorAll('img[src*="/emoji.php/"][alt]')) {
+      const t = document.createTextNode(img.alt);
+      img.after(t);
+      added.push(t);
+    }
+    const s = e.innerText;
+    added.forEach(t => t.remove());
+    return s;
+  };
   const p = document.querySelector('[role=feed] [aria-posinset="%d"]');
   if (!p) return JSON.stringify({missing: true});
   const own = sel => [...p.querySelectorAll(sel)].filter(e => !e.closest('[role=article]'));
   const prof = own('[data-ad-rendering-role="profile_name"]')[0];
   const authorA = prof ? prof.querySelector('a[href*="/user/"]') : null;
   const authorId = authorA ? ((authorA.getAttribute('href') || '').match(/\/user\/(\d+)/) || [])[1] : null;
-  const msgs = own('[data-ad-rendering-role="story_message"]').map(e => e.innerText);
-  const desc = own('[data-ad-rendering-role="description"]').map(e => e.innerText);
+  const msgs = own('[data-ad-rendering-role="story_message"]').map(textOf);
+  const desc = own('[data-ad-rendering-role="description"]').map(textOf);
   const ts = tsAnchor(p);
   const mr = ts ? ts.getBoundingClientRect() : null;
   const ids = [...new Set(own('a[href]').map(a => {

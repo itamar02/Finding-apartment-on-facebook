@@ -5,14 +5,9 @@ kind "edit" (re-analyzed, and announced if I had seen the post); a text that was
 before and is now read in full is stored as kind "expanded" (re-analyzed, not announced).
 """
 import difflib
-import re
 from datetime import datetime
 
-_SPACES = re.compile(r"\s+")
-
-
-def _norm(text):
-    return _SPACES.sub(" ", text or "").strip()
+from .textnorm import normalize as _norm   # emoji and spacing never count as an edit
 
 
 def current_text(db, post_id):

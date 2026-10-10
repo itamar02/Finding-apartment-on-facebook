@@ -13,13 +13,14 @@ import re
 from .contacts import phones_in_text
 from .db import EFFECTIVE_TEXT_SQL
 from .hard_rules import text_fingerprint
+from .textnorm import normalize
 
 SIMILARITY = 0.8
 _WS = re.compile(r"\s+")
 
 
 def _clean(text):
-    return _WS.sub(" ", text or "").strip().lower()
+    return normalize(text).lower()
 
 
 def similar(a, b):

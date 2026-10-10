@@ -9,6 +9,8 @@ import hashlib
 import re
 from datetime import datetime
 
+from .textnorm import normalize
+
 LISTING_TYPES = {"whole_apartment", "roommate_search", "room_replacement", "sublet"}
 
 
@@ -17,7 +19,7 @@ def _check(rule, status, detail):
 
 
 def _norm(s):
-    return re.sub(r"\s+", " ", s or "").strip()
+    return normalize(s)   # no emoji, single spaces: old copies without emoji still match new ones
 
 
 def text_fingerprint(text):

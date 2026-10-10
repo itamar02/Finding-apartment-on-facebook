@@ -159,3 +159,17 @@ def test_scheduler_runs_scan_then_analysis(db, cfg):
     sch.run_now()
     sch.tick()
     assert len(calls) == 4
+
+
+# --- emoji ---
+
+def test_emoji_only_difference_is_not_an_edit(db):
+    old = "דירת 3 חדרים בפלורנטין 5,000 ש\"ח 052-1234567"
+    assert versions.record_if_changed(db, "1001", "🏠 דירת 3 חדרים ☀️ בפלורנטין 5,000 ש\"ח 📍 052-1234567", False) is None
+    assert versions.record_if_changed(db, "1001", old + " גילאי 26+ 🔥", False) == "edit"
+
+
+def test_duplicate_fingerprint_ignores_emoji():
+    from apartment_bot.hard_rules import text_fingerprint
+    assert text_fingerprint("דירה להשכרה 🌊 בתל אביב") == text_fingerprint("דירה להשכרה  בתל אביב")
+    assert text_fingerprint("דירה א") != text_fingerprint("דירה ב")
