@@ -24,6 +24,9 @@ __pycache__/
 *.pyc
 *.log
 
+# --- Local watchdog (kept private for now) ------------------------------------------
+watchdog/
+
 # --- Tools, editors, OS --------------------------------------------------------------
 .claude/
 .venv/
