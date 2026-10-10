@@ -927,3 +927,51 @@ blockquote {
 .tabs button {
   padding: 8px 9px;
 }
+
+/* --- phase 5: settings sections and forms --- */
+
+.section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 4px 12px;
+}
+
+.section > summary {
+  font-weight: 600;
+  padding: 10px 0;
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.section[open] > summary {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+
+.section h2 {
+  font-size: 1rem;
+  margin: 14px 0 4px;
+}
+
+.section .settings {
+  padding-bottom: 12px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}

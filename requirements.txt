@@ -7,5 +7,6 @@ fastapi>=0.115
 uvicorn>=0.30
 pywebpush>=2.0       # notifications to the installed app
 google-auth-oauthlib>=1.2   # Google Calendar sign-in
+ruamel.yaml>=0.18    # edit config.yaml keeping its comments
 # Tests (python -m pytest)
 pytest>=8

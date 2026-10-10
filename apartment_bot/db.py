@@ -292,6 +292,21 @@ MIGRATIONS = [
         created_at  TEXT NOT NULL
     );
     """,
+    # 7 -> 8: config.yaml changes suggested from my own statuses and notes (learning loop).
+    """
+    CREATE TABLE config_proposals (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id     TEXT NOT NULL,
+        path        TEXT NOT NULL,             -- e.g. features.dealbreakers
+        op          TEXT NOT NULL,             -- add | remove | set
+        value_json  TEXT NOT NULL,
+        reason      TEXT NOT NULL,
+        evidence    TEXT NOT NULL,             -- JSON list of post ids that support it
+        status      TEXT NOT NULL,             -- open | accepted | declined
+        created_at  TEXT NOT NULL,
+        decided_at  TEXT
+    );
+    """,
 ]
 
 # A post's current text: its latest version if it was edited, else the text first seen.

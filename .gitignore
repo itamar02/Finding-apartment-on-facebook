@@ -1,6 +1,8 @@
 # --- Personal settings -------------------------------------------------------------
 # Your profile, groups and (optionally) API key. Copy config.example.yaml to config.yaml.
 config.yaml
+config.backup-*.yaml
+config.candidate.yaml
 .env
 
 # --- Collected data (private: Facebook posts, names, phone numbers, analyses) --------

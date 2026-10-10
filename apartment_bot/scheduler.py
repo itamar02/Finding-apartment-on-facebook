@@ -14,7 +14,7 @@ import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from . import db as dbmod, notify, settings
+from . import db as dbmod, learning, notify, providers, settings
 from .statuses import now_iso
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
@@ -75,6 +75,8 @@ class Scheduler:
             self._last_events_check = now.isoformat(timespec="seconds")
             notify.collect_events(db, self.cfg, self.user_id, since, now)
             notify.deliver_pending(db, self.user_id, now)
+            if learning.due(db, now):
+                self._learn(db, now)
             if not (conf.get("enabled") or self._force) or self.state["running"]:
                 return
             next_run = self.state["next_run"]
@@ -120,6 +122,21 @@ class Scheduler:
                               last_result=" | ".join(result),
                               next_run=(end + timedelta(minutes=conf_interval)).isoformat(timespec="seconds"))
             self._log("run: " + " | ".join(result))
+
+    def _learn(self, db, now):
+        """The weekly learning run; proposals wait in the app for my decision."""
+        import anthropic
+        from .config import get_api_key
+        try:
+            router = providers.Router(db, self.cfg, lambda: anthropic.Anthropic(api_key=get_api_key(self.cfg)))
+            n = learning.run(db, self.cfg, self.user_id, router, now)
+            if n:
+                notify.queue(db, self.user_id, "learning", f"learning:{now.date()}", "הצעות לשיפור החיפוש",
+                             f"{n} הצעות חדשות להגדרות, לפי מה שסימנת. אפשר לאשר או לדחות בהגדרות.")
+            self._log(f"learning: {n} proposals")
+        except Exception as e:
+            learning._mark_run(db, now)   # don't retry every minute
+            self._log(f"learning failed: {type(e).__name__}: {e}")
 
     def _interval(self):
         db = self._db()

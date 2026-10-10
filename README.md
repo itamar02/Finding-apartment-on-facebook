@@ -364,6 +364,23 @@ Once, on the PC:
    token is saved in `secrets/google_token.json` (git-ignored). Only permission to add and
    edit calendar events is requested.
 
+### My requirements and suggestions from my own choices
+
+- **My requirements** (Settings, first section): age, budget, listing types, cities and areas,
+  broker policy, roommates, required / nice-to-have / dealbreaker features, move-in dates and
+  free text - the same settings as `config.yaml`, edited from the phone. Saving writes them
+  back into `config.yaml` with ruamel.yaml, so its comments and order stay; the old file is
+  kept as `config.backup-<time>.yaml` (git-ignored), and the new one is checked with the
+  normal config validation before it replaces the old one. A changed config changes the
+  `config_hash` stored with new analyses, so `why.py` can tell a decision was made with older
+  settings; existing analyses are not redone automatically.
+- **Suggestions** (Settings, second section; off / weekly / on demand): the AI (stage
+  *learning*) reads the listings you marked *Not relevant* (especially with a note), the ones
+  you liked, and problems from your visits, and suggests small concrete changes, for example
+  "you rejected 8 ground-floor apartments; add 'ground floor' to dealbreakers?". Only changes
+  to the fields above, of the right type, backed by at least 3 of your listings are kept; a
+  suggestion you declined is not suggested again. Nothing changes until you tap *Accept*.
+
 ### Free or cheaper AI providers
 
 Settings > *AI providers* lets each analysis stage (gate, quick pass, full analysis, group
@@ -488,6 +505,7 @@ key gives a plain message saying which variable or setting to fix.
 | `notifications`, `followups`, `push_subscriptions`, `ai_calls` | the app | Sent / waiting notifications, snoozed or dismissed reminders, phones with notifications on, AI calls for rate limits |
 | `visit_items`, `visits`, `visit_checks`, `visit_photos` | the app | The checklist, and per listing: rating, notes, answers, your photos (files in `uploads/visits/`) |
 | `chats`, `meeting_proposals` | the app | WhatsApp chats you shared, and the meetings proposed from them (confirmed ones have the calendar event id) |
+| `config_proposals` | the app | Suggested `config.yaml` changes, their evidence and your decision |
 | `statuses`, `post_status`, `post_status_history`, `post_notes`, `post_seen`, `app_settings` | the phone app, `reject.py` | Your own status per listing (current + append-only history, source `human` / `gpt` / `system`), the editable status list, notes, which listings you opened, app settings |
 | `post_analyses` | `analyze_posts.py` | One row per analysis attempt: AI decision/rule/reason, final decision/rule/reason, `decided_by`, `facts_json`, `hard_rules_json`, `raw_response_json`, `model`, `pipeline_version`, `config_hash`, token counts, `cost_usd`, `analyzed_at`, `status` (`ok`/`error`), `error` |
 
@@ -575,6 +593,8 @@ apartment_bot/
   visits.py             visit checklist, rating, notes, photos, comparison
   meetings.py           WhatsApp chat -> checked meeting proposal -> confirmed event
   gcal.py               Google Calendar sign-in and event creation
+  config_edit.py        edit config.yaml from the app (ruamel.yaml, backup, validation)
+  learning.py           suggest config changes from my statuses and notes
   server.py             FastAPI routes
 web/                    the phone app (React + Vite + TypeScript); build with npm run build
 tests/                  python -m pytest

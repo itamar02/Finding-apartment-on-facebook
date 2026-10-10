@@ -18,8 +18,8 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-from . import (auth, db as dbmod, feed, followups, gcal, gpt_io, groups as groups_mod, meetings, notify, prices,
-               providers, settings, statuses, visits)
+from . import (auth, config_edit, db as dbmod, feed, followups, gcal, gpt_io, groups as groups_mod, learning,
+               meetings, notify, prices, providers, settings, statuses, visits)
 from .config import ConfigError, get_api_key
 from .ratelimit import RateLimiter
 from .scheduler import Scheduler
@@ -120,6 +120,10 @@ class ConfirmIn(BaseModel):
     address: Optional[str] = None
     minutes: int = 45
     notes: Optional[str] = None
+
+
+class ProfileIn(BaseModel):
+    values: dict
 
 
 class ReplyIn(BaseModel):
@@ -625,6 +629,54 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
     def discard_meeting(proposal_id: int, db=Depends(get_db)):
         meetings.discard(db, proposal_id)
         return {"ok": True}
+
+    # --- my search settings (config.yaml) and the learning loop -------------------------------
+
+    def _reload(new_cfg):
+        """Use the new config everywhere in this server (the dicts are shared by every route)."""
+        cfg.clear()
+        cfg.update(new_cfg)
+        user.clear()
+        user.update(get_user(cfg, uid))
+
+    @app.get("/api/profile")
+    def get_profile():
+        kinds = {p: (list(k[1]) if isinstance(k, tuple) and k[0] == "list" else list(k) if isinstance(k, tuple) else k)
+                 for p, k in config_edit.EDITABLE.items()}
+        return {"values": config_edit.read(cfg, uid), "kinds": kinds}
+
+    @app.put("/api/profile")
+    def put_profile(body: ProfileIn):
+        try:
+            new_cfg, _backup = config_edit.apply([(p, "set", v) for p, v in body.values.items()], uid)
+        except config_edit.EditError as e:
+            raise HTTPException(400, str(e))
+        _reload(new_cfg)
+        return {"values": config_edit.read(cfg, uid)}
+
+    @app.get("/api/learning")
+    def get_learning(db=Depends(get_db)):
+        return {"proposals": learning.proposals(db, uid), "settings": settings.get(db, "learning")}
+
+    @app.post("/api/learning/run")
+    def run_learning(db=Depends(get_db)):
+        try:
+            n = learning.run(db, cfg, uid, _router(db))
+        except ConfigError as e:
+            raise HTTPException(400, f"AI key: {e}")
+        return {"added": n, "proposals": learning.proposals(db, uid)}
+
+    @app.post("/api/learning/{proposal_id}/{decision}")
+    def decide_learning(proposal_id: int, decision: str, db=Depends(get_db)):
+        if decision not in ("accept", "decline"):
+            raise HTTPException(404, "unknown decision")
+        try:
+            new_cfg = learning.decide(db, uid, proposal_id, decision == "accept")
+        except config_edit.EditError as e:
+            raise HTTPException(400, str(e))
+        if new_cfg:
+            _reload(new_cfg)
+        return {"proposals": learning.proposals(db, uid)}
 
     # --- the web app ----------------------------------------------------------------------------
 

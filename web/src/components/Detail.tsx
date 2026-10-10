@@ -31,9 +31,27 @@ const FACT_LABELS: [string, string][] = [
   ["pets", "חיות"],
 ];
 
+const VALUE_LABEL: Record<string, string> = {
+  yes: "כן",
+  no: "לא",
+  no_broker: "בלי תיווך",
+  broker: "יש תיווך",
+  furnished: "מרוהטת",
+  partially_furnished: "מרוהטת חלקית",
+  unfurnished: "לא מרוהטת",
+  mamad: "ממ״ד",
+  mamak: "ממ״ק",
+  building_shelter: "מקלט בבניין",
+  none: "אין",
+  allowed: "מותר",
+  not_allowed: "אסור",
+  negotiable: "לדבר על זה",
+};
+
 function show(key: string, v: unknown): string | null {
   if (v == null || v === "" || v === "unknown") return null;
   if (key === "listing_type") return TYPE_LABEL[String(v)] ?? String(v);
+  if (typeof v === "string" && VALUE_LABEL[v]) return VALUE_LABEL[v];
   if (key === "rent_ils" || key === "total_monthly_ils_known") return money(Number(v));
   return String(v);
 }

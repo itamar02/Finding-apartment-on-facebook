@@ -4,6 +4,18 @@ import { useApp } from "../App";
 import GptTool from "./GptTool";
 import NotifySettings from "./NotifySettings";
 import AiSettings from "./AiSettings";
+import SearchSettings from "./SearchSettings";
+import LearningPanel from "./LearningPanel";
+
+/** One collapsible block of the settings screen. */
+function Section({ title, children, open }: { title: string; children: React.ReactNode; open?: boolean }) {
+  return (
+    <details className="section" open={open}>
+      <summary>{title}</summary>
+      <div className="settings">{children}</div>
+    </details>
+  );
+}
 
 const PLACEHOLDERS = ["{name}", "{area}", "{street}", "{group}", "{price}"];
 const SAMPLE: Record<string, string> = { name: "דנה", area: "פלורנטין", street: "", group: "דירות בתל אביב", price: "5,000" };
@@ -41,35 +53,52 @@ export default function SettingsView({ onLogout }: { onLogout: () => void }) {
 
   return (
     <div className="settings">
-      <h2>הודעת פתיחה בוואטסאפ</h2>
-      <p className="muted small">
-        משתנים: {PLACEHOLDERS.join(" ")}. חלק בסוגריים מרובעים [ ] יושמט אם חסר בו מידע.
-      </p>
-      <textarea rows={4} value={template} onChange={(e) => setTemplate(e.target.value)} dir="auto" />
-      <p className="preview small">{preview(template)}</p>
+      <Section title="הדרישות שלי (מה ה-AI בודק)">
+        <SearchSettings />
+      </Section>
 
-      <label className="label">השם שלי בוואטסאפ (כדי לזהות בשיחות מי אמר מה)</label>
-      <input dir="auto" value={myName} onChange={(e) => setMyName(e.target.value)} />
+      <Section title="הצעות לשיפור החיפוש">
+        <LearningPanel />
+      </Section>
 
-      <h2>מודעות ישנות</h2>
-      <label className="check">
-        להסתיר מודעות מעל
-        <input className="short" inputMode="numeric" value={recent} placeholder={String(app.meta.recent_days)} onChange={(e) => setRecent(e.target.value.replace(/\D/g, ""))} />
-        ימים (גם בייצוא)
-      </label>
-      <button className="btn primary" onClick={save}>
-        שמור
-      </button>
+      <Section title="וואטסאפ ומודעות ישנות">
+        <h2>הודעת פתיחה בוואטסאפ</h2>
+        <p className="muted small">
+          משתנים: {PLACEHOLDERS.join(" ")}. חלק בסוגריים מרובעים [ ] יושמט אם חסר בו מידע.
+        </p>
+        <textarea rows={4} value={template} onChange={(e) => setTemplate(e.target.value)} dir="auto" />
+        <p className="preview small">{preview(template)}</p>
 
-      <StatusEditor />
+        <label className="label">השם שלי בוואטסאפ (כדי לזהות בשיחות מי אמר מה)</label>
+        <input dir="auto" value={myName} onChange={(e) => setMyName(e.target.value)} />
 
-      <VisitItemsEditor />
+        <h2>מודעות ישנות</h2>
+        <label className="check">
+          להסתיר מודעות מעל
+          <input className="short" inputMode="numeric" value={recent} placeholder={String(app.meta.recent_days)} onChange={(e) => setRecent(e.target.value.replace(/\D/g, ""))} />
+          ימים (גם בייצוא)
+        </label>
+        <button className="btn primary" onClick={save}>
+          שמור
+        </button>
+      </Section>
 
-      <NotifySettings />
+      <Section title="סטטוסים ורשימת בדיקה לביקור">
+        <StatusEditor />
+        <VisitItemsEditor />
+      </Section>
 
-      <AiSettings />
+      <Section title="התראות, תזכורות וסריקה אוטומטית">
+        <NotifySettings />
+      </Section>
 
-      <GptTool />
+      <Section title="ספקי AI">
+        <AiSettings />
+      </Section>
+
+      <Section title="מיון עם ChatGPT">
+        <GptTool />
+      </Section>
 
       <h2>חשבון</h2>
       <button

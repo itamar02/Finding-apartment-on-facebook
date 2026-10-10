@@ -41,6 +41,8 @@ DEFAULTS = {
     "app_url": None,
     # My name as it appears in exported WhatsApp chats (helps tell my messages apart).
     "whatsapp_my_name": None,
+    # Learning loop (learning.py): off | weekly | on_demand.
+    "learning": {"mode": "on_demand", "last_run": None},
 }
 
 

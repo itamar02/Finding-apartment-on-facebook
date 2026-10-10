@@ -126,6 +126,17 @@ export interface Settings {
   scheduler: SchedulerSettings;
   app_url: string | null;
   whatsapp_my_name: string | null;
+  learning: { mode: string; last_run: string | null };
+}
+
+export interface ConfigProposal {
+  id: number;
+  path: string;
+  op: "add" | "remove" | "set";
+  value: unknown;
+  reason: string;
+  evidence: string[];
+  created_at: string;
 }
 
 export interface ProviderConf {
@@ -393,6 +404,12 @@ export const api = {
   confirmMeeting: (id: number, v: { date: string; time: string; address: string | null; minutes: number; notes: string | null }) =>
     call<{ event_link: string | null; post_id: string }>(`/api/meetings/${id}/confirm`, send("POST", v)),
   discardMeeting: (id: number) => call(`/api/meetings/${id}/discard`, send("POST")),
+  profile: () => call<{ values: Record<string, unknown>; kinds: Record<string, unknown> }>("/api/profile"),
+  saveProfile: (values: Record<string, unknown>) => call<{ values: Record<string, unknown> }>("/api/profile", send("PUT", { values })),
+  learning: () => call<{ proposals: ConfigProposal[]; settings: { mode: string; last_run: string | null } }>("/api/learning"),
+  runLearning: () => call<{ added: number; proposals: ConfigProposal[] }>("/api/learning/run", send("POST")),
+  decideLearning: (id: number, accept: boolean) =>
+    call<{ proposals: ConfigProposal[] }>(`/api/learning/${id}/${accept ? "accept" : "decline"}`, send("POST")),
   gptExport: (includeOld: boolean) =>
     call<{ text: string; count: number; posts: unknown[]; prompt: string }>(`/api/gpt/export?include_old=${includeOld}`),
   gptPreview: (text: string) => call<GptPreview>("/api/gpt/preview", send("POST", { text })),

@@ -23,7 +23,7 @@ from .ratelimit import RateLimited, RateLimiter
 
 SECRETS_DIR = Path(__file__).resolve().parent.parent / "secrets"
 KEYS_FILE = SECRETS_DIR / "ai_keys.json"
-STAGES = ("gate", "triage", "full", "group_score", "meeting")
+STAGES = ("gate", "triage", "full", "group_score", "meeting", "learning")
 ANTHROPIC = "anthropic"
 
 # Ready-made entries the app offers (free tiers change; check each provider's page).
