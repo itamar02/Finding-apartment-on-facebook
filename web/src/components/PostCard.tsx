@@ -56,10 +56,15 @@ export default function PostCard({ card }: { card: Card }) {
   return (
     <article className="card" style={def ? { borderInlineStartColor: def.color, borderInlineStartWidth: 4 } : undefined}>
       <div className="card-head">
-        <span className={"badge" + (mine ? " dim" : "")} style={{ background: DECISION_COLOR[decision] }} title="ההחלטה של ה-AI">
+        <button
+          className={"badge" + (mine ? " dim" : "")}
+          style={{ background: DECISION_COLOR[decision] }}
+          title="ההחלטה של ה-AI. הקש כדי לקבוע את ההחלטה שלך"
+          onClick={() => setPicking(true)}
+        >
           {mine ? "AI: " : ""}
-          {DECISION_LABEL[decision]}
-        </span>
+          {DECISION_LABEL[decision]} ▾
+        </button>
         <StatusChip status={card.status} onClick={() => setPicking(true)} />
         {card.edited && <span className="tag">נערכה</span>}
         <span className="muted small grow-end">
@@ -126,6 +131,7 @@ export default function PostCard({ card }: { card: Card }) {
 
       {picking && (
         <StatusPicker
+          aiLabel={DECISION_LABEL[decision]}
           current={card.status}
           onClose={() => setPicking(false)}
           onPick={(s, note) => {

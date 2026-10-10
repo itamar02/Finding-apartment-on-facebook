@@ -60,10 +60,12 @@ export function StatusChip({ status, onClick }: { status: MyStatus | null; onCli
 
 export default function StatusPicker({
   current,
+  aiLabel,
   onPick,
   onClose,
 }: {
   current: MyStatus | null;
+  aiLabel?: string;
   onPick: (status: string | null, note: string | null) => void;
   onClose: () => void;
 }) {
@@ -97,7 +99,21 @@ export default function StatusPicker({
           </>
         ) : (
           <>
-            <h3>הסטטוס שלי</h3>
+            <h3>ההחלטה שלי</h3>
+            {aiLabel && (
+              <p className="muted small">
+                ה-AI סימן: <b>{aiLabel}</b>. אחרי שבדקת בעצמך, בחר מה לעשות איתה (ההחלטה של ה-AI נשארת כפי שהיא).
+              </p>
+            )}
+            <div className="row">
+              <button className="btn vote-wide on-good-btn" onClick={() => onPick("interested", current?.status === "interested" ? current.note : null)}>
+                👍 מתאימה לי
+              </button>
+              <button className="btn vote-wide on-bad-btn" onClick={() => onPick("not_relevant", null)}>
+                🗑️ לא מתאימה
+              </button>
+            </div>
+            <span className="label">או סטטוס אחר:</span>
             <div className="status-grid">
               {meta.statuses.map((s) => (
                 <button

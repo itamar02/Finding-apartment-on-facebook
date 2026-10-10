@@ -1027,3 +1027,27 @@ blockquote {
 .fullscreen > .topbar {
   justify-content: space-between;
 }
+
+button.badge {
+  border: 0;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn.vote-wide {
+  flex: 1;
+  min-height: 48px;
+  font-size: 1rem;
+}
+
+.btn.on-good-btn {
+  border-color: var(--pass);
+  color: var(--pass);
+}
+
+.btn.on-bad-btn {
+  border-color: var(--reject);
+  color: var(--reject);
+}
