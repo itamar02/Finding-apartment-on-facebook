@@ -215,28 +215,69 @@ def test_download_runs_no_ai_and_analyze_runs_no_scan(db, cfg):
         sch.start_job("everything")
 
 
-def test_stop_ends_the_job_and_nothing_else_runs(db, cfg):
+def test_stop_is_polite_the_job_finishes_by_itself(db, cfg, tmp_path, monkeypatch):
     import threading
-    started, release, calls = threading.Event(), threading.Event(), []
+    from apartment_bot import jobs
+    monkeypatch.setattr(jobs, "STOP_FILE", tmp_path / ".stop")
+    started, calls = threading.Event(), []
+
+    class Proc:                                                   # a scan that ends when asked nicely
+        pid = 1
+
+        def poll(self):
+            return 0 if self.done else None
+        done = False
+
+    proc = Proc()
 
     def runner(args):
         calls.append(args[0])
+        sch._proc = proc
         started.set()
-        release.wait(5)                                          # a long scan, until stopped
+        import time
+        while not jobs.stop_requested():                          # the script looks for the file between posts
+            time.sleep(0.01)
+        proc.done = True                                          # ...finishes the current post and ends
+        return 0, "stopped on request"
+    sch = _job_scheduler(db, cfg, runner)
+    killed = []
+    import apartment_bot.scheduler as scheduler_mod
+    monkeypatch.setattr(scheduler_mod, "_kill_tree", lambda p: killed.append(p.pid))
+    assert sch.start_job("all")
+    assert not sch.start_job("download")                          # one job at a time
+    assert started.wait(5)
+    assert sch.stop_job(grace=5) and sch.state["stopping"]
+    assert not sch.stop_job()                                     # already stopping
+    _wait(sch)
+    assert calls == ["scan_facebook.py"]                          # the analysis never started
+    assert killed == []                                           # nothing was killed
+    assert "הופסק" in sch.state["last_result"] and "מסד הנתונים תקין" in sch.state["last_result"]
+    assert not jobs.stop_requested() and not sch.state["stopping"]
+
+
+def test_stop_kills_only_as_a_last_resort(db, cfg, tmp_path, monkeypatch):
+    import threading
+    from apartment_bot import jobs
+    monkeypatch.setattr(jobs, "STOP_FILE", tmp_path / ".stop")
+    started, release, killed = threading.Event(), threading.Event(), []
+
+    class Proc:
+        pid = 7
+        def poll(self):
+            return 0 if release.is_set() else None
+    import apartment_bot.scheduler as scheduler_mod
+    monkeypatch.setattr(scheduler_mod, "_kill_tree", lambda p: (killed.append(p.pid), release.set()))
+
+    def runner(args):
+        sch._proc = Proc()
+        started.set()
+        release.wait(5)                                           # a scan that ignores the polite request
         return 1, "killed"
     sch = _job_scheduler(db, cfg, runner)
-    assert sch.start_job("all")
-    assert not sch.start_job("download")                         # one job at a time
-    assert started.wait(5)
-    killed = []
-    sch._proc = type("P", (), {"poll": lambda self: None, "pid": 1})()
-    import apartment_bot.scheduler as scheduler_mod
-    scheduler_mod._kill_tree = lambda proc: (killed.append(proc.pid), release.set())
-    assert sch.stop_job() and killed == [1]
+    assert sch.start_job("download") and started.wait(5)
+    assert sch.stop_job(grace=0.3)
     _wait(sch)
-    assert calls == ["scan_facebook.py"]                         # the analysis never started
-    assert sch.state["last_result"] == "הופסק"
-    assert not sch.stop_job()                                    # nothing left to stop
+    assert killed == [7]
 
 
 def test_count_pending(db):

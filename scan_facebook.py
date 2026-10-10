@@ -19,7 +19,7 @@ import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from apartment_bot import db as dbmod, groups as groups_mod, versions
+from apartment_bot import db as dbmod, groups as groups_mod, jobs, versions
 from apartment_bot.config import ConfigError, load_config, max_post_age_days
 from apartment_bot.db import POST_IMAGES_DDL
 import bot_chrome
@@ -83,7 +83,8 @@ def run_harness(group_id, known_ids, max_posts, stop_after_known, cutoff_iso, ha
     RESULT_MARKER. Failures are returned as {"error": ...} so other groups still run.
     """
     cfg = {"group_id": group_id, "known_ids": sorted(known_ids), "max_posts": max_posts,
-           "stop_after_known": stop_after_known, "cutoff_iso": cutoff_iso, "project_dir": str(HERE)}
+           "stop_after_known": stop_after_known, "cutoff_iso": cutoff_iso, "project_dir": str(HERE),
+           "stop_file": str(jobs.STOP_FILE)}
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as f:
         json.dump(cfg, f)
         cfg_path = f.name
@@ -219,6 +220,7 @@ def main():
     max_age = args.max_age_days if args.max_age_days is not None else max_post_age_days(cfg)
     cutoff = (datetime.now().astimezone() - timedelta(days=max_age)).isoformat(timespec="minutes")
 
+    jobs.clear_stop()   # a leftover request from an earlier run must not stop this one
     acquire_lock()
     try:
         return _scan(args, cfg, groups, cutoff)
@@ -246,16 +248,27 @@ def _scan(args, cfg, groups, cutoff):
             # Everything back to the age limit was read before, so meeting stored posts
             # means the rest is already here. Otherwise read on to the age limit.
             known = {r[0] for r in db.execute("SELECT post_id FROM posts WHERE group_id = ?", (group_id,))}
+        if jobs.stop_requested():
+            print("Stopped on request before the next group; everything read so far is saved.", flush=True)
+            break
         started = now_iso()
         result = run_harness(group_id, known, args.max_posts, args.stop_after_known, cutoff, env)
+        if result["stop_reason"] == "stopped_by_user":
+            # A group cut short leaves a gap: mark the run as failed so the next scan reads it fully.
+            result["error"] = "stopped on request"
         new = store_result(db, group_id, result, started)
         total_scanned += len(result["posts"])
         total_new += new
         line = f"[{i}/{len(groups)}] {group_id}: scanned {len(result['posts'])}, new {new}"
-        if result["error"]:
+        stopped = result["stop_reason"] == "stopped_by_user"
+        if result["error"] and not stopped:
             failed.append(group_id)
             line += f"  ERROR: {result['error']}"
+        if stopped:
+            line += "  (stopped on request; the posts read so far are saved)"
         print(line, flush=True)
+        if stopped:
+            break
         if result["error"] and "not logged in" in result["error"]:
             print("Stopped: Facebook is not logged in in the bot Chrome. Run: python bot_chrome.py "
                   "and log in there, then scan again.")

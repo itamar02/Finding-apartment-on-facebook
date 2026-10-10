@@ -49,7 +49,9 @@ export default function ScanBar({ onFinished }: { onFinished: () => void }) {
   async function stop() {
     try {
       await api.stopScheduler();
-      app.toast({ text: "עוצר…" });
+      setState((s) => (s ? { ...s, stopping: true } : s));
+      app.toast({ text: "עוצר: מסיים את הפעולה הנוכחית ושומר" });
+      window.clearTimeout(timer.current);
       timer.current = window.setTimeout(refresh, 1500);
     } catch (e) {
       app.fail(e);
@@ -58,32 +60,35 @@ export default function ScanBar({ onFinished }: { onFinished: () => void }) {
 
   if (!state) return null;
   const limit = state.settings.analyze_limit;
+
+  /** The button that started the running job turns into Stop; the others wait. */
+  function jobButton(job: "download" | "analyze" | "all", label: string, disabled = false) {
+    const mine = state!.running && state!.job === job;
+    if (mine) {
+      return (
+        <button className="btn danger" disabled={state!.stopping} onClick={stop}>
+          {state!.stopping ? "⏳ עוצר…" : "⏹ עצור"}
+        </button>
+      );
+    }
+    return (
+      <button className="btn" disabled={state!.running || disabled} onClick={() => start(job)}>
+        {label}
+      </button>
+    );
+  }
+
   return (
     <div className="scanbar">
-      {state.running ? (
-        <>
-          <span>⏳ {STEP[state.step ?? "scan"] ?? "רץ"}…</span>
-          <button className="btn danger" onClick={stop}>
-            ⏹ עצור
-          </button>
-        </>
-      ) : (
-        <>
-          <button className="btn" onClick={() => start("download")}>
-            ⬇ הורד מודעות
-          </button>
-          <button className="btn" onClick={() => start("analyze")} disabled={state.unchecked === 0}>
-            🧠 נתח מודעות
-          </button>
-          <button className="btn" onClick={() => start("all")}>
-            🔄 הכל
-          </button>
-        </>
-      )}
+      {jobButton("download", "⬇ הורד מודעות")}
+      {jobButton("analyze", "🧠 נתח מודעות", state.unchecked === 0)}
+      {jobButton("all", "🔄 הכל")}
       <span className="small muted grow-line">
-        {state.running
-          ? "אפשר להמשיך להשתמש באפליקציה"
-          : `${state.unchecked.toLocaleString("he-IL")} מודעות לא נבדקו · ניתוח עד ${limit || "ללא הגבלה"} בכל פעם`}
+        {state.stopping
+          ? "מסיים את הפעולה הנוכחית ושומר, בלי לפגוע במסד הנתונים…"
+          : state.running
+            ? `${STEP[state.step ?? "scan"] ?? "רץ"}… אפשר להמשיך להשתמש באפליקציה`
+            : `${state.unchecked.toLocaleString("he-IL")} מודעות לא נבדקו · ניתוח עד ${limit || "ללא הגבלה"} בכל פעם`}
         {!state.running && state.last_end && ` · אחרון ${age(state.last_end)}${state.last_result ? `: ${state.last_result}` : ""}`}
       </span>
     </div>

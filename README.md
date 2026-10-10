@@ -350,8 +350,11 @@ In **Settings**:
 - **Jobs on the feed**: three buttons at the top, each asked for on purpose: **⬇ Download posts**
   (reads the Facebook groups only - no AI, no cost), **🧠 Analyze posts** (the AI on the posts not
   checked yet, newest first, at most the limit set below; it shows the number and an estimated
-  price and asks to confirm first) and **🔄 All** (both). While one runs, **⏹ Stop** ends it
-  immediately - what was already saved stays. Only one runs at a time.
+  price and asks to confirm first) and **🔄 All** (both). While a job runs, its button turns into
+  **⏹ Stop**. Stop is polite: the job is asked to finish the post or group it is on, save it and
+  end by itself (a stopped group is marked unfinished so the next scan reads it fully); only if it
+  hasn't ended after 3 minutes is its process ended. Afterwards the database is checked and the
+  result says so. Only one job runs at a time.
 - **Automatic scanning**: the server runs `scan_facebook.py`, then `analyze_posts.py --all`,
   then sends notifications, every N minutes (default 30), except during its quiet hours. It
   is off until you turn it on; *Scan now* runs it once. This replaces the watchdog - don't

@@ -428,7 +428,8 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
 
     @app.post("/api/scheduler/stop")
     def scheduler_stop():
-        return {"stopped": scheduler.stop_job()}
+        """A polite stop: the job finishes its current step, saves, and ends (see jobs.py)."""
+        return {"stopping": scheduler.stop_job()}
 
     # --- notifications ----------------------------------------------------------------------
 

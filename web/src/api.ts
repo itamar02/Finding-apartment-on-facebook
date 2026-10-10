@@ -177,6 +177,7 @@ export interface SchedulerState {
   last_result: string | null;
   next_run: string | null;
   job: "download" | "analyze" | "all" | null;
+  stopping: boolean;
   unchecked: number;
   settings: SchedulerSettings;
 }
@@ -377,7 +378,7 @@ export const api = {
   discovery: () => call<{ running: boolean; exit_code: number | null; log: string[] }>("/api/groups/discover"),
   scheduler: () => call<SchedulerState>("/api/scheduler"),
   runScheduler: (job: "download" | "analyze" | "all" = "all") => call("/api/scheduler/run", send("POST", { job })),
-  stopScheduler: () => call<{ stopped: boolean }>("/api/scheduler/stop", send("POST")),
+  stopScheduler: () => call<{ stopping: boolean }>("/api/scheduler/stop", send("POST")),
   notifications: () =>
     call<{
       items: { id: number; kind: string; post_id: string | null; title: string; body: string; created_at: string; sent_at: string | null; error: string | null }[];

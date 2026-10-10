@@ -15,7 +15,7 @@ from pathlib import Path
 
 import anthropic
 
-from apartment_bot import ai_filter, db as dbmod, providers
+from apartment_bot import ai_filter, db as dbmod, jobs, providers
 from apartment_bot.config import ConfigError, get_api_key, get_user, load_config
 from apartment_bot.display import facts_lines, term_safe
 from apartment_bot.pictures import download_pictures
@@ -76,7 +76,11 @@ def main():
                                            "cache_read_tokens": 0, "cache_write_tokens": 0}
     counts = {}
     skipped_by_code = 0
+    jobs.clear_stop()   # a leftover request from an earlier run must not stop this one
     for i, post in enumerate(posts, 1):
+        if jobs.stop_requested():
+            print(f"Stopped on request after {i - 1} of {len(posts)} posts; each finished post is saved.")
+            break
         row = analyze_one(db, client, model, user, post, early_stop=early_stop)
         print(f"[{i}/{len(posts)}] post {post['post_id']}  {post['url']}")
         if row["status"] != "ok":

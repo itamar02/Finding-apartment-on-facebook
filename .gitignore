@@ -25,6 +25,7 @@ results*.json
 __pycache__/
 *.pyc
 *.log
+.stop
 
 # --- Phone app: login token, keys and your own uploads stay on this PC ---------------
 secrets/

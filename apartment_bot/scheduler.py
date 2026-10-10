@@ -11,14 +11,16 @@ the scan lock and everything else behave the same. Settings: "scheduler" in app_
 import subprocess
 import sys
 import threading
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from . import db as dbmod, learning, notify, providers, settings
+from . import db as dbmod, jobs, learning, notify, providers, settings
 from .statuses import now_iso
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 JOBS = ("download", "analyze", "all")
+STOP_GRACE_SECONDS = 180
 LOG_FILE = PROJECT_DIR / "scheduler.log"
 
 
@@ -27,7 +29,7 @@ class Scheduler:
         self.cfg, self.user_id, self.db_path = cfg, user_id, db_path
         self.runner = runner or self._run_script
         self.tick_seconds = tick_seconds
-        self.state = {"running": False, "job": None, "step": None, "last_start": None, "last_end": None,
+        self.state = {"running": False, "stopping": False, "job": None, "step": None, "last_start": None, "last_end": None,
                       "last_result": None, "next_run": None}
         self._stop = threading.Event()
         self._cancel = threading.Event()
@@ -67,15 +69,28 @@ class Scheduler:
         threading.Thread(target=self.run_once, kwargs={"job": job}, name=f"job-{job}", daemon=True).start()
         return True
 
-    def stop_job(self):
-        """Stop the running job now: its process is killed and nothing further runs."""
-        if not self.state["running"]:
+    def stop_job(self, grace=STOP_GRACE_SECONDS):
+        """Ask the running job to stop. It finishes its current post or group, saves it and exits
+        by itself. Only if it hasn't ended after `grace` seconds is its process killed (SQLite undoes
+        an unfinished write, so even that cannot corrupt the database)."""
+        if not self.state["running"] or self.state.get("stopping"):
             return False
         self._cancel.set()
+        self.state["stopping"] = True
+        jobs.request_stop()
         proc = self._proc
-        if proc and proc.poll() is None:
-            _kill_tree(proc)
+        if proc:
+            threading.Thread(target=self._enforce_stop, args=(proc, grace), name="stop-watch", daemon=True).start()
         return True
+
+    def _enforce_stop(self, proc, grace):
+        deadline = time.time() + grace
+        while proc.poll() is None and time.time() < deadline:
+            jobs.request_stop()      # the script clears the file when it starts; keep asking until it ends
+            time.sleep(min(1.0, grace / 4 or 0.01))
+        if proc.poll() is None:
+            self._log(f"stop: the job did not end within {grace}s; its process is ended now")
+            _kill_tree(proc)
 
     # --- work ---
 
@@ -120,7 +135,8 @@ class Scheduler:
         now = now or datetime.now().astimezone()
         started = now.isoformat(timespec="seconds")
         self._cancel.clear()
-        self.state.update(running=True, job=job, last_start=started, step=None)
+        jobs.clear_stop()
+        self.state.update(running=True, job=job, last_start=started, step=None, stopping=False)
         result = []
         try:
             if job in ("download", "all"):
@@ -149,12 +165,27 @@ class Scheduler:
                 finally:
                     db.close()
         finally:
+            if self._cancel.is_set():
+                result.append(self._integrity_note())
+            jobs.clear_stop()
             end = datetime.now().astimezone()
-            self.state.update(running=False, job=None, step=None, last_end=end.isoformat(timespec="seconds"),
+            self.state.update(running=False, stopping=False, job=None, step=None,
+                              last_end=end.isoformat(timespec="seconds"),
                               last_result=" | ".join(result),
                               next_run=(end + timedelta(minutes=self._interval())).isoformat(timespec="seconds"))
             self._proc = None
             self._log(f"{job}: " + " | ".join(result))
+
+    def _integrity_note(self):
+        """After a stop: check the database file and say so."""
+        db = self._db()
+        try:
+            ok = db.execute("PRAGMA quick_check").fetchone()[0] == "ok"
+        except Exception:
+            ok = False
+        finally:
+            db.close()
+        return "מסד הנתונים תקין" if ok else "אזהרה: בדיקת מסד הנתונים נכשלה"
 
     def _learn(self, db, now):
         """The weekly learning run; proposals wait in the app for my decision."""

@@ -17,6 +17,7 @@ GROUP_ID = cfg["group_id"]
 KNOWN = set(cfg["known_ids"])
 MAX_POSTS = cfg["max_posts"]
 STOP_AFTER_KNOWN = cfg["stop_after_known"]  # also used for consecutive too-old posts
+STOP_FILE = cfg.get("stop_file")           # created by the app's Stop button
 CUTOFF_ISO = cfg["cutoff_iso"]              # posts older than this are past the search window
 FEED_URL = f"https://www.facebook.com/groups/{GROUP_ID}/?sorting_setting=CHRONOLOGICAL"
 
@@ -291,6 +292,9 @@ try:
     n = 0
     while True:
         n += 1
+        if STOP_FILE and os.path.exists(STOP_FILE):
+            result["stop_reason"] = "stopped_by_user"   # the posts read so far are still saved
+            break
         if len(result["posts"]) >= MAX_POSTS:
             result["stop_reason"] = "max_posts"
             break
