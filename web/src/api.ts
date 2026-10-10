@@ -125,6 +125,7 @@ export interface Settings {
   notifications: NotificationSettings;
   scheduler: SchedulerSettings;
   app_url: string | null;
+  whatsapp_my_name: string | null;
 }
 
 export interface ProviderConf {
@@ -227,6 +228,52 @@ export interface Filters {
   sort: "newest" | "price_asc" | "price_desc";
 }
 
+export interface Visit {
+  rating: number | null;
+  notes: string | null;
+  visited_at: string | null;
+  checklist: { item_id: number; label: string; state: "ok" | "issue" | "na" | null; note: string | null }[];
+  photos: { id: number; src: string; created_at: string }[];
+}
+
+export interface VisitRow {
+  post_id: string;
+  status: string | null;
+  rating: number | null;
+  notes: string | null;
+  rent_ils: number | null;
+  total_monthly_ils_known: number | null;
+  area: string | null;
+  rooms: number | null;
+  issues: { label: string; note: string | null }[];
+  ok: string[];
+  photos: number;
+}
+
+export interface Proposal {
+  id: number;
+  chat_id: number;
+  post_id: string | null;
+  found: number;
+  date: string | null;
+  time: string | null;
+  address: string | null;
+  evidence: string[];
+  explanation?: string | null;
+  status?: "proposed" | "confirmed" | "discarded";
+  event_link?: string | null;
+  chat_title?: string | null;
+  created_at?: string;
+}
+
+export interface ChatResult {
+  chat_id: number;
+  post_id: string | null;
+  phones: string[];
+  candidates: { post_id: string; posted_at: string | null; author: string | null; snippet: string }[];
+  proposal: Proposal;
+}
+
 export class NotPaired extends Error {}
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -321,6 +368,31 @@ export const api = {
   ai: () => call<AiState>("/api/ai"),
   saveAi: (v: Pick<AiState, "ai_providers" | "ai_stages" | "anthropic_limits">) => call<AiState>("/api/ai", send("PUT", v)),
   saveAiKey: (id: string, key: string) => call(`/api/ai/keys/${encodeURIComponent(id)}`, send("PUT", { key })),
+  visit: (id: string) => call<Visit>(`/api/posts/${id}/visit`),
+  saveVisit: (id: string, v: { rating: number | null; notes: string | null; checks: { item_id: number; state: string | null; note: string | null }[] }) =>
+    call<Visit>(`/api/posts/${id}/visit`, send("PUT", v)),
+  uploadVisitPhoto: async (id: string, file: File) => {
+    const resp = await fetch(`/api/posts/${id}/visit/photos`, {
+      method: "POST",
+      body: file,
+      headers: { "X-ApartmentBot": "1", "Content-Type": file.type || "image/jpeg" },
+      credentials: "same-origin",
+    });
+    if (resp.status === 401) throw new NotPaired();
+    if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail ?? String(resp.status));
+    return resp.json();
+  },
+  deleteVisitPhoto: (photoId: number) => call(`/api/visit-photos/${photoId}`, send("DELETE")),
+  visits: () => call<VisitRow[]>("/api/visits"),
+  visitItems: () => call<{ id: number; label: string }[]>("/api/visit-items"),
+  saveVisitItems: (labels: string[]) => call("/api/visit-items", send("PUT", { labels })),
+  addChat: (text: string, source: string, title?: string) => call<ChatResult>("/api/chats", send("POST", { text, source, title })),
+  linkChat: (chatId: number, postId: string) => call(`/api/chats/${chatId}/link`, send("POST", { post_id: postId })),
+  propose: (chatId: number) => call<Proposal>(`/api/chats/${chatId}/propose`, send("POST")),
+  meetings: () => call<{ items: Proposal[]; calendar: { client_file: boolean; signed_in: boolean } }>("/api/meetings"),
+  confirmMeeting: (id: number, v: { date: string; time: string; address: string | null; minutes: number; notes: string | null }) =>
+    call<{ event_link: string | null; post_id: string }>(`/api/meetings/${id}/confirm`, send("POST", v)),
+  discardMeeting: (id: number) => call(`/api/meetings/${id}/discard`, send("POST")),
   gptExport: (includeOld: boolean) =>
     call<{ text: string; count: number; posts: unknown[]; prompt: string }>(`/api/gpt/export?include_old=${includeOld}`),
   gptPreview: (text: string) => call<GptPreview>("/api/gpt/preview", send("POST", { text })),

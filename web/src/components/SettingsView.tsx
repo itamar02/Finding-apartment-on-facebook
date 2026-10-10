@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, StatusDef } from "../api";
 import { useApp } from "../App";
 import GptTool from "./GptTool";
@@ -23,10 +23,15 @@ export default function SettingsView({ onLogout }: { onLogout: () => void }) {
   const app = useApp();
   const [template, setTemplate] = useState(app.meta.settings.whatsapp_template);
   const [recent, setRecent] = useState(String(app.meta.settings.recent_days ?? ""));
+  const [myName, setMyName] = useState(app.meta.settings.whatsapp_my_name ?? "");
 
   async function save() {
     try {
-      await api.saveSettings({ whatsapp_template: template, recent_days: recent ? Number(recent) : null });
+      await api.saveSettings({
+        whatsapp_template: template,
+        recent_days: recent ? Number(recent) : null,
+        whatsapp_my_name: myName.trim() || null,
+      });
       await app.reloadMeta();
       app.toast({ text: "נשמר" });
     } catch (e) {
@@ -43,6 +48,9 @@ export default function SettingsView({ onLogout }: { onLogout: () => void }) {
       <textarea rows={4} value={template} onChange={(e) => setTemplate(e.target.value)} dir="auto" />
       <p className="preview small">{preview(template)}</p>
 
+      <label className="label">השם שלי בוואטסאפ (כדי לזהות בשיחות מי אמר מה)</label>
+      <input dir="auto" value={myName} onChange={(e) => setMyName(e.target.value)} />
+
       <h2>מודעות ישנות</h2>
       <label className="check">
         להסתיר מודעות מעל
@@ -54,6 +62,8 @@ export default function SettingsView({ onLogout }: { onLogout: () => void }) {
       </button>
 
       <StatusEditor />
+
+      <VisitItemsEditor />
 
       <NotifySettings />
 
@@ -72,6 +82,38 @@ export default function SettingsView({ onLogout }: { onLogout: () => void }) {
         התנתק בטלפון הזה
       </button>
     </div>
+  );
+}
+
+function VisitItemsEditor() {
+  const app = useApp();
+  const [text, setText] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.visitItems().then((items) => setText(items.map((i) => i.label).join("\n"))).catch(app.fail);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (text === null) return null;
+  return (
+    <>
+      <h2>רשימת בדיקה לביקור</h2>
+      <p className="muted small">שורה לכל פריט, לפי הסדר.</p>
+      <textarea rows={7} dir="auto" value={text} onChange={(e) => setText(e.target.value)} />
+      <button
+        className="btn"
+        onClick={async () => {
+          try {
+            await api.saveVisitItems(text.split("\n"));
+            app.toast({ text: "נשמר" });
+          } catch (e) {
+            app.fail(e);
+          }
+        }}
+      >
+        שמור רשימה
+      </button>
+    </>
   );
 }
 

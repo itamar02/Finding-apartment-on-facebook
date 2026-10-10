@@ -5,6 +5,9 @@ import { age, dateTime, DECISION_COLOR, DECISION_LABEL, money, SOURCE_LABEL, TYP
 import Gallery from "./Gallery";
 import { ContactButton, PriceHistory } from "./PostCard";
 import StatusPicker, { StatusChip, useStatusActions } from "./StatusPicker";
+import VisitPanel from "./VisitPanel";
+
+const VISIT_STATUSES = ["meeting_scheduled", "visited", "top_candidate"];
 
 const FACT_LABELS: [string, string][] = [
   ["listing_type", "סוג"],
@@ -163,6 +166,8 @@ export default function Detail({ postId, onClose }: { postId: string; onClose: (
               </dl>
             </>
           )}
+
+          {VISIT_STATUSES.includes(d.status?.status ?? "") && <VisitPanel postId={d.post_id} />}
 
           <h3>הערות</h3>
           {d.notes.map((n) =>

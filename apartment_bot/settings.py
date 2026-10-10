@@ -39,6 +39,8 @@ DEFAULTS = {
                   "analyze": True},
     # The app's address (from tailscale serve), used in links inside Telegram messages.
     "app_url": None,
+    # My name as it appears in exported WhatsApp chats (helps tell my messages apart).
+    "whatsapp_my_name": None,
 }
 
 

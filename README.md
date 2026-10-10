@@ -333,6 +333,37 @@ In **Settings**:
   when they share a phone number or an author and the text is at least 80% similar. A card
   shows the earlier prices and highlights a drop.
 
+### Visits and scheduling viewings
+
+- **Visit checklist**: a listing at *Meeting scheduled*, *Visited* or *Top candidate* gets a
+  checklist in its details (water pressure, mold, noise, storage, parking, bills, landlord -
+  the list is editable in Settings): OK / problem / not relevant per item, notes, a 1-5
+  rating, and photos you take with the phone. The photos are stored only on the PC, in
+  `uploads/visits/` (git-ignored). The **Visits** tab compares the apartments side by side.
+- **From a WhatsApp chat to the calendar**: share the chat to the app (Android: in WhatsApp,
+  *More > Export chat > Without media*, then pick the app; this works once the app is
+  installed), or paste it, or upload the exported `.txt` (the way to do it on an iPhone). The
+  app links the chat to a listing by a phone number that appears in both, or asks you to pick
+  one. The AI (stage *meeting* in the AI providers settings) proposes a date, time and address
+  **only if the chat shows that you explicitly agreed to a time**, and quotes the lines that
+  show it; the code checks every quote is really in the chat. Nothing is added to your
+  calendar until you check the details and tap **Confirm**: then one Google Calendar event is
+  created (address, phone, link to the post and your notes) and the status becomes *Meeting
+  scheduled*. The app never connects to WhatsApp itself and uses no unofficial WhatsApp
+  library. Set *My name in WhatsApp* in Settings so the AI can tell your messages apart.
+
+### Google Calendar
+
+Once, on the PC:
+
+1. In the [Google Cloud Console](https://console.cloud.google.com/): create a project, enable
+   the **Google Calendar API**, set up the OAuth consent screen (type *External*, add yourself
+   as a test user), and create an **OAuth client ID** of type **Desktop app**. Download its
+   JSON and save it as `secrets/google_client_secret.json`.
+2. Run `python app_server.py --google-login`. A browser opens on the PC; allow access. The
+   token is saved in `secrets/google_token.json` (git-ignored). Only permission to add and
+   edit calendar events is requested.
+
 ### Free or cheaper AI providers
 
 Settings > *AI providers* lets each analysis stage (gate, quick pass, full analysis, group
@@ -455,6 +486,8 @@ key gives a plain message saying which variable or setting to fix.
 | `post_versions` | `scan_facebook.py` | Later texts of edited posts (`posts` keeps the first one) |
 | `listing_posts` | the app | Posts grouped into one apartment, with each post's rent (price history) |
 | `notifications`, `followups`, `push_subscriptions`, `ai_calls` | the app | Sent / waiting notifications, snoozed or dismissed reminders, phones with notifications on, AI calls for rate limits |
+| `visit_items`, `visits`, `visit_checks`, `visit_photos` | the app | The checklist, and per listing: rating, notes, answers, your photos (files in `uploads/visits/`) |
+| `chats`, `meeting_proposals` | the app | WhatsApp chats you shared, and the meetings proposed from them (confirmed ones have the calendar event id) |
 | `statuses`, `post_status`, `post_status_history`, `post_notes`, `post_seen`, `app_settings` | the phone app, `reject.py` | Your own status per listing (current + append-only history, source `human` / `gpt` / `system`), the editable status list, notes, which listings you opened, app settings |
 | `post_analyses` | `analyze_posts.py` | One row per analysis attempt: AI decision/rule/reason, final decision/rule/reason, `decided_by`, `facts_json`, `hard_rules_json`, `raw_response_json`, `model`, `pipeline_version`, `config_hash`, token counts, `cost_usd`, `analyzed_at`, `status` (`ok`/`error`), `error` |
 
@@ -539,6 +572,9 @@ apartment_bot/
   scheduler.py          background scan -> analyze -> notify in the app server
   providers.py          AI provider per stage (Anthropic / OpenAI-compatible), schema check, fallback
   ratelimit.py          per-minute / per-day request limits
+  visits.py             visit checklist, rating, notes, photos, comparison
+  meetings.py           WhatsApp chat -> checked meeting proposal -> confirmed event
+  gcal.py               Google Calendar sign-in and event creation
   server.py             FastAPI routes
 web/                    the phone app (React + Vite + TypeScript); build with npm run build
 tests/                  python -m pytest
@@ -546,8 +582,8 @@ tests/                  python -m pytest
 
 Created at run time and git-ignored: `apartments.db` (+ backups), `pictures/`, exported
 `results*.txt` / `results*.json` / `out.*`, `.scan.lock`, `*.log`, `secrets/` (the app's login
-token, Web Push keys, Telegram bot, AI keys),
-`uploads/`, `web/node_modules/`, `web/dist/`.
+token, Web Push keys, Telegram bot, AI keys, Google sign-in), `uploads/` (your visit photos),
+`web/node_modules/`, `web/dist/`.
 
 ## Extending
 

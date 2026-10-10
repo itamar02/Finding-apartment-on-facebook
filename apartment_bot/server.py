@@ -5,6 +5,7 @@ Changes also need the header "X-ApartmentBot: 1", which a page from another site
 send without the browser asking first, so a link elsewhere can't change anything here.
 """
 import asyncio
+import json
 from contextlib import asynccontextmanager
 import os
 import secrets
@@ -17,8 +18,9 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-from . import (auth, db as dbmod, feed, followups, gpt_io, groups as groups_mod, notify, prices, providers,
-               settings, statuses)
+from . import (auth, db as dbmod, feed, followups, gcal, gpt_io, groups as groups_mod, meetings, notify, prices,
+               providers, settings, statuses, visits)
+from .config import ConfigError, get_api_key
 from .ratelimit import RateLimiter
 from .scheduler import Scheduler
 from .config import get_user
@@ -88,6 +90,36 @@ class AiIn(BaseModel):
 
 class KeyIn(BaseModel):
     key: str = ""
+
+
+class VisitIn(BaseModel):
+    rating: Optional[int] = None
+    notes: Optional[str] = None
+    visited_at: Optional[str] = None
+    checks: list[dict] = []
+
+
+class ItemsIn(BaseModel):
+    labels: list[str]
+
+
+class ChatIn(BaseModel):
+    text: str
+    title: Optional[str] = None
+    source: str = "paste"
+    post_id: Optional[str] = None
+
+
+class LinkIn(BaseModel):
+    post_id: str
+
+
+class ConfirmIn(BaseModel):
+    date: str
+    time: str
+    address: Optional[str] = None
+    minutes: int = 45
+    notes: Optional[str] = None
 
 
 class ReplyIn(BaseModel):
@@ -486,6 +518,112 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
     @app.put("/api/ai/keys/{provider_id}")
     def save_ai_key(provider_id: str, body: KeyIn):
         providers.save_key(provider_id, body.key)
+        return {"ok": True}
+
+    # --- visits -------------------------------------------------------------------------------
+
+    @app.get("/api/posts/{post_id}/visit")
+    def get_visit(post_id: str, db=Depends(get_db)):
+        return visits.get(db, uid, post_id)
+
+    @app.put("/api/posts/{post_id}/visit")
+    def put_visit(post_id: str, body: VisitIn, db=Depends(get_db)):
+        try:
+            return visits.save(db, uid, post_id, body.rating, body.notes, body.visited_at, body.checks)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    @app.post("/api/posts/{post_id}/visit/photos")
+    async def upload_visit_photo(post_id: str, request: Request, db=Depends(get_db)):
+        """The photo is the raw request body (Content-Type: image/...), straight from the phone."""
+        data = await request.body()
+        try:
+            pid = visits.add_photo(db, uid, post_id, data, request.headers.get("content-type"))
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        return {"id": pid, "src": f"/api/visit-photos/{pid}"}
+
+    @app.get("/api/visit-photos/{photo_id}")
+    def visit_photo(photo_id: int, db=Depends(get_db)):
+        path = visits.photo_path(db, uid, photo_id)
+        if not path:
+            raise HTTPException(404, "photo missing")
+        return FileResponse(path, headers={"Cache-Control": "private, max-age=604800"})
+
+    @app.delete("/api/visit-photos/{photo_id}")
+    def delete_visit_photo(photo_id: int, db=Depends(get_db)):
+        if not visits.delete_photo(db, uid, photo_id):
+            raise HTTPException(404, "photo missing")
+        return {"ok": True}
+
+    @app.get("/api/visits")
+    def compare_visits(db=Depends(get_db)):
+        return visits.comparison(db, uid)
+
+    @app.get("/api/visit-items")
+    def visit_items(db=Depends(get_db)):
+        return visits.items(db)
+
+    @app.put("/api/visit-items")
+    def save_visit_items(body: ItemsIn, db=Depends(get_db)):
+        return visits.save_items(db, body.labels)
+
+    # --- chats, meeting proposals, calendar --------------------------------------------------
+
+    def _router(db):
+        import anthropic
+
+        def client():
+            return anthropic.Anthropic(api_key=get_api_key(cfg))
+        return providers.Router(db, cfg, client)
+
+    def _propose(db, chat_id):
+        try:
+            return meetings.propose(db, cfg, uid, chat_id, _router(db))
+        except ConfigError as e:
+            raise HTTPException(400, f"AI key: {e}")
+
+    @app.post("/api/chats")
+    def add_chat(body: ChatIn, db=Depends(get_db)):
+        try:
+            saved = meetings.save_chat(db, uid, body.text, body.source, body.title, body.post_id)
+        except meetings.MeetingError as e:
+            raise HTTPException(400, str(e))
+        return {**saved, "proposal": _propose(db, saved["chat_id"])}
+
+    @app.post("/api/chats/{chat_id}/link")
+    def link_chat(chat_id: int, body: LinkIn, db=Depends(get_db)):
+        try:
+            meetings.link_chat(db, uid, chat_id, body.post_id)
+        except meetings.MeetingError as e:
+            raise HTTPException(400, str(e))
+        return {"ok": True}
+
+    @app.post("/api/chats/{chat_id}/propose")
+    def repropose(chat_id: int, db=Depends(get_db)):
+        try:
+            return _propose(db, chat_id)
+        except meetings.MeetingError as e:
+            raise HTTPException(400, str(e))
+
+    @app.get("/api/meetings")
+    def list_meetings(db=Depends(get_db)):
+        rows = db.execute("SELECT m.*, c.title AS chat_title FROM meeting_proposals m JOIN chats c ON c.id = m.chat_id"
+                          " WHERE c.user_id = ? ORDER BY m.id DESC LIMIT 30", (uid,)).fetchall()
+        return {"items": [{**dict(r), "evidence": json.loads(r["evidence"] or "[]")} for r in rows],
+                "calendar": gcal.status()}
+
+    @app.post("/api/meetings/{proposal_id}/confirm")
+    def confirm_meeting(proposal_id: int, body: ConfirmIn, db=Depends(get_db)):
+        try:
+            return meetings.confirm(db, cfg, uid, proposal_id, body.date, body.time, body.address, body.minutes,
+                                    body.notes)
+        except (meetings.MeetingError, gcal.CalendarError) as e:
+            raise HTTPException(400, str(e))
+
+    @app.post("/api/meetings/{proposal_id}/discard")
+    def discard_meeting(proposal_id: int, db=Depends(get_db)):
+        meetings.discard(db, proposal_id)
         return {"ok": True}
 
     # --- the web app ----------------------------------------------------------------------------

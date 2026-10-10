@@ -6,5 +6,6 @@ pyyaml>=6.0
 fastapi>=0.115
 uvicorn>=0.30
 pywebpush>=2.0       # notifications to the installed app
+google-auth-oauthlib>=1.2   # Google Calendar sign-in
 # Tests (python -m pytest)
 pytest>=8

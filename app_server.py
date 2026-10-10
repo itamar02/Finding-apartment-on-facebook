@@ -22,6 +22,8 @@ def main():
     ap.add_argument("--user", help="user id from config.yaml (default: the only user)")
     ap.add_argument("--pair", action="store_true", help="print a one-time login code for the phone and exit")
     ap.add_argument("--reset-token", action="store_true", help="make a new app token (logs out all phones) and exit")
+    ap.add_argument("--google-login", action="store_true",
+                    help="connect Google Calendar (opens a browser on this PC) and exit")
     ap.add_argument("--insecure-cookie", action="store_true",
                     help="allow login over plain http (only for testing on this PC without Tailscale)")
     args = ap.parse_args()
@@ -29,6 +31,14 @@ def main():
     if args.reset_token:
         auth.get_token(reset=True)
         print("New app token created. Every phone has to log in again (python app_server.py --pair).")
+        return 0
+    if args.google_login:
+        from apartment_bot import gcal
+        try:
+            gcal.login()
+        except gcal.CalendarError as e:
+            sys.exit(str(e))
+        print("Google Calendar connected. Viewings you confirm in the app will be added to your calendar.")
         return 0
     if args.pair:
         auth.get_token()

@@ -6,8 +6,22 @@ import Board from "./components/Board";
 import Detail from "./components/Detail";
 import SettingsView from "./components/SettingsView";
 import Groups from "./components/Groups";
+import Visits from "./components/Visits";
 
-type View = "feed" | "board" | "groups" | "settings";
+type View = "feed" | "board" | "visits" | "groups" | "settings";
+
+/** A chat shared to the app (Android share target): the service worker keeps it in a cache. */
+async function takeShared(): Promise<{ text: string; title?: string } | null> {
+  try {
+    const cache = await caches.open("share-target");
+    const resp = await cache.match("/shared");
+    if (!resp) return null;
+    await cache.delete("/shared");
+    return await resp.json();
+  } catch {
+    return null;
+  }
+}
 
 interface Toast {
   text: string;
@@ -53,6 +67,7 @@ export default function App() {
   const [view, setView] = useState<View>("feed");
   const [filters, setFilters] = useState<Filters>(loadFilters);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [shared, setShared] = useState<{ text: string; title?: string } | null>(null);
   const [toastState, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<number>();
   const listeners = useRef(new Set<(postId: string, status: MyStatus | null) => void>());
@@ -75,6 +90,16 @@ export default function App() {
   // Notifications open the app at /#post=<id>.
   useEffect(() => {
     const fromHash = () => {
+      if (location.hash === "#share") {
+        history.replaceState(null, "", location.pathname);
+        takeShared().then((s) => {
+          if (s) {
+            setShared(s);
+            setView("visits");
+          }
+        });
+        return;
+      }
       const m = location.hash.match(/post=(\w+)/);
       if (m) {
         setOpenId(m[1]);
@@ -146,6 +171,9 @@ export default function App() {
             <button className={view === "board" ? "on" : ""} onClick={() => setView("board")}>
               לוח
             </button>
+            <button className={view === "visits" ? "on" : ""} onClick={() => setView("visits")}>
+              ביקורים
+            </button>
             <button className={view === "groups" ? "on" : ""} onClick={() => setView("groups")}>
               קבוצות
             </button>
@@ -157,6 +185,7 @@ export default function App() {
         <main>
           {view === "feed" && <Feed filters={filters} setFilters={setFilters} />}
           {view === "board" && <Board />}
+          {view === "visits" && <Visits shared={shared} onSharedUsed={() => setShared(null)} />}
           {view === "groups" && <Groups />}
           {view === "settings" && <SettingsView onLogout={() => setPaired(false)} />}
         </main>

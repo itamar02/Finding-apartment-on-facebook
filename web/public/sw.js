@@ -1,6 +1,6 @@
 // Service worker: makes the app installable and keeps the app shell available.
 // Data always comes live from the PC (no offline copy of listings).
-const SHELL = "apartmentbot-shell-v2";
+const SHELL = "apartmentbot-shell-v3";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(SHELL).then((c) => c.addAll(["/", "/manifest.webmanifest", "/icon-192.png"])));
@@ -16,6 +16,26 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
+  // Android share target: a WhatsApp chat (text or exported .txt) shared to the app.
+  // Kept in a cache for the page to pick up; nothing is sent anywhere until you tap Check.
+  if (event.request.method === "POST" && url.pathname === "/share") {
+    event.respondWith(
+      (async () => {
+        const form = await event.request.formData();
+        const file = form.get("file");
+        let text = [form.get("title"), form.get("text")].filter(Boolean).join("\n");
+        let title = form.get("title") || undefined;
+        if (file && typeof file !== "string") {
+          text = await file.text();
+          title = file.name;
+        }
+        const cache = await caches.open("share-target");
+        await cache.put("/shared", new Response(JSON.stringify({ text, title }), { headers: { "Content-Type": "application/json" } }));
+        return Response.redirect("/#share", 303);
+      })()
+    );
+    return;
+  }
   if (event.request.method !== "GET" || url.origin !== self.location.origin || url.pathname.startsWith("/api/")) {
     return; // API calls and photos go straight to the network
   }

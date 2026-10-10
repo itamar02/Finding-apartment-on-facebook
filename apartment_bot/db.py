@@ -230,6 +230,68 @@ MIGRATIONS = [
     );
     CREATE INDEX idx_ai_calls ON ai_calls(provider, called_at);
     """,
+    # 6 -> 7: visits (checklist, notes, my photos, rating) and meetings proposed from a
+    # WhatsApp chat I shared, which become calendar events only after I confirm.
+    """
+    CREATE TABLE visit_items (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        label      TEXT NOT NULL,
+        sort_order INTEGER NOT NULL,
+        active     INTEGER NOT NULL DEFAULT 1   -- removed items stay for old visits
+    );
+    INSERT INTO visit_items (label, sort_order) VALUES
+        ('לחץ מים', 10), ('עובש / רטיבות', 20), ('רעש', 30), ('מקום אחסון', 40), ('חניה', 50),
+        ('חשבונות (חשמל, מים, ארנונה, ועד)', 60), ('תחושה מבעל הדירה', 70);
+    CREATE TABLE visits (
+        post_id    TEXT NOT NULL,
+        user_id    TEXT NOT NULL,
+        rating     INTEGER CHECK (rating BETWEEN 1 AND 5),
+        notes      TEXT,
+        visited_at TEXT,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (post_id, user_id)
+    );
+    CREATE TABLE visit_checks (
+        post_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        item_id INTEGER NOT NULL REFERENCES visit_items(id),
+        state   TEXT CHECK (state IN ('ok', 'issue', 'na')),
+        note    TEXT,
+        PRIMARY KEY (post_id, user_id, item_id)
+    );
+    CREATE TABLE visit_photos (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        post_id    TEXT NOT NULL,
+        user_id    TEXT NOT NULL,
+        path       TEXT NOT NULL,              -- relative to the project, under uploads/
+        created_at TEXT NOT NULL
+    );
+    CREATE TABLE chats (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id    TEXT NOT NULL,
+        post_id    TEXT,                       -- linked listing (by phone, or picked by hand)
+        source     TEXT NOT NULL,              -- paste | upload | share
+        title      TEXT,
+        text       TEXT NOT NULL,
+        phones     TEXT,                       -- JSON list found in the chat
+        created_at TEXT NOT NULL
+    );
+    CREATE TABLE meeting_proposals (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        chat_id     INTEGER NOT NULL REFERENCES chats(id),
+        post_id     TEXT,
+        found       INTEGER NOT NULL,          -- 0: no agreed time in the chat
+        date        TEXT,                      -- YYYY-MM-DD
+        time        TEXT,                      -- HH:MM
+        address     TEXT,
+        evidence    TEXT,                      -- JSON list of quoted chat lines
+        status      TEXT NOT NULL,             -- proposed | confirmed | discarded
+        event_id    TEXT,
+        event_link  TEXT,
+        model       TEXT,
+        created_at  TEXT NOT NULL
+    );
+    """,
 ]
 
 # A post's current text: its latest version if it was edited, else the text first seen.

@@ -816,3 +816,114 @@ main {
   width: auto;
   max-width: 50%;
 }
+
+/* --- phase 4: visits and meetings --- */
+
+.stars {
+  display: flex;
+  gap: 4px;
+  color: var(--review);
+}
+
+.stars button {
+  border: 0;
+  background: none;
+  font-size: 1.8rem;
+  line-height: 1;
+  color: var(--border);
+  padding: 0 2px;
+}
+
+.stars button.on {
+  color: var(--review);
+}
+
+.visit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.check-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+
+.seg {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.seg button {
+  border: 0;
+  background: var(--surface);
+  padding: 6px 8px;
+  font-size: 0.8rem;
+}
+
+.seg button.on.ok {
+  background: var(--pass);
+  color: #fff;
+}
+
+.seg button.on.issue {
+  background: var(--reject);
+  color: #fff;
+}
+
+.seg button.on.na {
+  background: var(--muted);
+  color: #fff;
+}
+
+.proposal {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+blockquote {
+  margin: 0;
+  padding: 4px 10px;
+  border-inline-start: 3px solid var(--accent);
+  background: var(--surface-2);
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.compare {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.compare-row {
+  text-align: start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.issue-text {
+  color: var(--reject);
+}
+
+.tabs button {
+  padding: 8px 9px;
+}
