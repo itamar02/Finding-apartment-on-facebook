@@ -313,7 +313,7 @@ it). `tailscale serve --bg` survives restarts by itself.
 
 - **Feed**: one card per listing with the AI verdict and reason, rent / area / rooms / type /
   move-in, photos, the text, the group, the post's age and a link to the Facebook post.
-  Filters: AI decision, my status, who set it (me / GPT / system), group, price, area, date,
+  Filters: AI decision, my status, who set it (me / AI chat / system), group, price, area, date,
   has phone. Sort by newest or price. Listings older than the recent window (default: the
   largest `listing.max_post_age_days`; changeable in Settings) are hidden unless you ask.
 - **WhatsApp button** when the post has a mobile number or a WhatsApp link: opens a chat with a
@@ -335,11 +335,11 @@ it). `tailscale serve --bg` survives restarts by itself.
   `facebook.groups` in `config.yaml` only fills it the first time. *Find groups* runs
   `discover_groups.py` on the PC (see below). Groups you are not a member of show a link to
   join on Facebook; joining stays manual.
-- **Sorting with ChatGPT or another chat AI** (Settings): *Export* gives the listings without
+- **Sorting with an AI chat (ChatGPT, Claude, Gemini...)** (Settings): *Export* gives the listings without
   a status set by you (text, facts, AI verdict, contacts) plus a ready prompt; paste it into
   the chat, paste the answer back, check the preview, and confirm. Imported statuses are
-  marked GPT (the feed can filter by who set a status) and never replace a status you set
-  yourself unless you tick that box. A GPT "not relevant" is not a rejection by you, so
+  marked "AI chat" (the feed can filter by who set a status) and never replace a status you set
+  yourself unless you tick that box. An AI chat's "not relevant" is not a rejection by you, so
   `reject.py --list` and the exports' HUMAN REJECTED section only show your own. The export
   holds other people's phone numbers - keep that in mind before pasting it into a service.
 
@@ -362,7 +362,7 @@ In **Settings**:
   choose which AI decisions are announced, a price ceiling, quiet hours (notifications wait
   and are sent when they end), and whether to be told about:
   - **edited posts**: when a post you have already seen (opened in the app, or given a
-    status there or through a GPT import) is edited, with a short "added / removed" note.
+    status there or through an AI-chat import) is edited, with a short "added / removed" note.
     The scanner keeps the first text in `posts` and stores every later edit in
     `post_versions`; the app shows the current text and the earlier versions, and an edited
     post is analyzed again. The scanner only re-reads posts near the top of each group, so an

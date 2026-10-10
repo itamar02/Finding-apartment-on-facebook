@@ -24,7 +24,7 @@ export const TYPE_LABEL: Record<string, string> = {
   unknown: "לא ידוע",
 };
 
-export const SOURCE_LABEL: Record<string, string> = { human: "אני", gpt: "GPT", system: "מערכת" };
+export const SOURCE_LABEL: Record<string, string> = { human: "אני", gpt: "צ׳אט AI", system: "מערכת" };
 
 export function money(n: number | null | undefined): string | null {
   return n == null ? null : `${n.toLocaleString("he-IL")} ₪`;

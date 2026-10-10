@@ -53,7 +53,7 @@ export function StatusChip({ status, onClick }: { status: MyStatus | null; onCli
       title={status?.note ?? undefined}
     >
       {def ? def.label : "+ סטטוס"}
-      {status?.source === "gpt" && <span className="src">GPT</span>}
+      {status?.source === "gpt" && <span className="src">צ׳אט AI</span>}
     </button>
   );
 }

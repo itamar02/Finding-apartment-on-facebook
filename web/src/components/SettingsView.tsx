@@ -96,7 +96,7 @@ export default function SettingsView({ onLogout }: { onLogout: () => void }) {
         <AiSettings />
       </Section>
 
-      <Section title="מיון עם ChatGPT">
+      <Section title="מיון עם צ׳אט AI">
         <GptTool />
       </Section>
 

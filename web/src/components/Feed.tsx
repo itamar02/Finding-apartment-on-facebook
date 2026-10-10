@@ -86,7 +86,7 @@ export default function Feed({ filters, setFilters }: { filters: Filters; setFil
       )}
       {loading && items.length === 0 && <p className="center muted">טוען…</p>}
 
-      {showFilters && <FilterSheet filters={filters} onApply={setFilters} onClose={() => setShowFilters(false)} />}
+      {showFilters && <FilterSheet filters={filters} total={total} onApply={setFilters} onClose={() => setShowFilters(false)} />}
     </div>
   );
 }
@@ -109,14 +109,38 @@ function toggle<T>(list: T[], v: T): T[] {
   return list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
 }
 
-function FilterSheet({ filters, onApply, onClose }: { filters: Filters; onApply: (f: Filters) => void; onClose: () => void }) {
+/** Filters apply as you tap them (the list behind changes); the top bar has a real back button. */
+function FilterSheet({
+  filters,
+  total,
+  onApply,
+  onClose,
+}: {
+  filters: Filters;
+  total: number;
+  onApply: (f: Filters) => void;
+  onClose: () => void;
+}) {
   const { meta } = useApp();
-  const [f, setF] = useState<Filters>(filters);
+  const [f, setLocal] = useState<Filters>(filters);
+  const setF = (next: Filters) => {
+    setLocal(next);
+    onApply(next);
+  };
   const num = (s: string) => (s.trim() === "" ? undefined : Number(s.replace(/\D/g, "")));
 
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet tall" onClick={(e) => e.stopPropagation()}>
+    <div className="fullscreen">
+      <header className="topbar">
+        <button className="btn" onClick={onClose}>
+          → חזרה
+        </button>
+        <span className="muted small">{total} מודעות</span>
+        <button className="btn" onClick={() => setF(DEFAULT_FILTERS)}>
+          איפוס
+        </button>
+      </header>
+      <div className="filter-body">
         <h3>סינון</h3>
 
         <label className="label">החלטת AI</label>
@@ -188,21 +212,6 @@ function FilterSheet({ filters, onApply, onClose }: { filters: Filters; onApply:
               {v === undefined ? "הכל" : v ? "יש טלפון" : "אין טלפון"}
             </button>
           ))}
-        </div>
-
-        <div className="row sticky-actions">
-          <button
-            className="btn primary"
-            onClick={() => {
-              onApply(f);
-              onClose();
-            }}
-          >
-            הצג
-          </button>
-          <button className="btn" onClick={() => setF(DEFAULT_FILTERS)}>
-            איפוס
-          </button>
         </div>
       </div>
     </div>

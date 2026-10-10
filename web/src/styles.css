@@ -1014,3 +1014,16 @@ blockquote {
 .grow-line {
   flex-basis: 100%;
 }
+
+.filter-body {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 8px 16px calc(40px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fullscreen > .topbar {
+  justify-content: space-between;
+}

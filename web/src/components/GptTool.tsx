@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api, GptPreview } from "../api";
 import { useApp } from "../App";
 
-/** Export listings for ChatGPT (or any chat AI) and import its statuses back, with a preview. */
+/** Export listings for an AI chat (ChatGPT, Claude, Gemini...) and import its statuses back, with a preview. */
 export default function GptTool() {
   const app = useApp();
   const [includeOld, setIncludeOld] = useState(false);
@@ -71,7 +71,7 @@ export default function GptTool() {
 
   return (
     <>
-      <h2>מיון עם AI חיצוני (ChatGPT וכו׳)</h2>
+      <h2>מיון עם צ׳אט AI</h2>
       <p className="muted small">
         1. ייצא את המודעות שעוד אין להן סטטוס שקבעת. 2. הדבק בצ׳אט. 3. הדבק כאן את התשובה, בדוק ואשר.
         שים לב: המודעות כוללות מספרי טלפון של אנשים אחרים.
