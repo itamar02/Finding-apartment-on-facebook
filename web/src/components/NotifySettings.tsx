@@ -242,7 +242,9 @@ export default function NotifySettings() {
       </label>
       <label className="check">
         <input type="checkbox" checked={sched.analyze} onChange={(e) => setSched({ ...sched, analyze: e.target.checked })} />
-        לנתח עם AI אחרי כל סריקה
+        לנתח עם AI אחרי כל סריקה, עד
+        <input className="short" inputMode="numeric" value={sched.analyze_limit} onChange={(e) => setSched({ ...sched, analyze_limit: Number(e.target.value.replace(/\D/g, "")) })} />
+        מודעות (0 = הכל)
       </label>
       <QuietHoursInput value={sched.quiet_hours} onChange={(q) => setSched({ ...sched, quiet_hours: q })} />
       {state && (

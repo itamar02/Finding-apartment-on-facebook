@@ -105,7 +105,9 @@ class Scheduler:
                 db.close()
             if conf.get("analyze", True):
                 self.state["step"] = "analyze"
-                code, out = self.runner(["analyze_posts.py", "--all", "--user", self.user_id])
+                limit = int(conf.get("analyze_limit") or 0)
+                code, out = self.runner(["analyze_posts.py", "--user", self.user_id,
+                                         *(["--limit", str(limit)] if limit > 0 else ["--all"])])
                 result.append(_last_line(out) or f"analyze exit {code}")
             self.state["step"] = "notify"
             db = self._db()

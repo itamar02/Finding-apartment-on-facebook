@@ -36,7 +36,10 @@ DEFAULTS = {
     },
     # Background scan -> analyze -> notify (app server).
     "scheduler": {"enabled": False, "interval_minutes": 30, "quiet_hours": {"start": "01:00", "end": "07:00"},
-                  "analyze": True},
+                  "analyze": True,
+                  # At most this many posts go to the AI per run, newest first (0 = all of them). Keeps a
+                  # button press or a scheduled run from paying for a whole backlog at once.
+                  "analyze_limit": 200},
     # The app's address (from tailscale serve), used in links inside Telegram messages.
     "app_url": None,
     # My name as it appears in exported WhatsApp chats (helps tell my messages apart).

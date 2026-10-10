@@ -975,3 +975,11 @@ blockquote {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
+
+.scanbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}

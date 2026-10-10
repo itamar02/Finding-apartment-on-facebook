@@ -115,6 +115,7 @@ export interface SchedulerSettings {
   interval_minutes: number;
   quiet_hours: QuietHours | null;
   analyze: boolean;
+  analyze_limit: number;
 }
 
 export interface Settings {

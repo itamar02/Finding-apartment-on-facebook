@@ -151,8 +151,15 @@ def test_scheduler_runs_scan_then_analysis(db, cfg):
     sch.tick()
     assert calls == []                                   # off by default
     settings.put(db, {"scheduler": {"enabled": True, "quiet_hours": None}})
+    args_seen = []
+    def fake_runner(args):
+        args_seen.append(args)
+        calls.append(args[0])
+        return 0, "done"
+    sch.runner = fake_runner
     sch.tick()
     assert calls == ["scan_facebook.py", "analyze_posts.py"]
+    assert args_seen[1][-2:] == ["--limit", "200"]                      # a run never pays for the whole backlog
     assert sch.state["next_run"] and not sch.state["running"] and sch.state["last_result"] == "done | done"
     sch.tick()
     assert len(calls) == 2                               # not again before the interval

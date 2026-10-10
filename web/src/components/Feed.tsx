@@ -4,6 +4,7 @@ import { DEFAULT_FILTERS, useApp } from "../App";
 import { DECISION_LABEL, SOURCE_LABEL } from "../format";
 import PostCard from "./PostCard";
 import FollowUps from "./FollowUps";
+import ScanBar from "./ScanBar";
 
 const PAGE = 30;
 
@@ -59,6 +60,7 @@ export default function Feed({ filters, setFilters }: { filters: Filters; setFil
         <span className="muted small grow-end">{total} מודעות</span>
       </div>
 
+      <ScanBar onFinished={() => load(0)} />
       <FollowUps />
       {items.map((c) => (
         <PostCard key={c.post_id} card={c} />
