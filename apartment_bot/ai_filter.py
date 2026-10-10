@@ -239,38 +239,28 @@ def analyze_post(client, model, user, post_text, posted_at, today, mode="full"):
     """
     schema = {"full": SCHEMA, "triage": TRIAGE_SCHEMA, "gate": GATE_SCHEMA}[mode]
     instruction = {"full": "", "triage": TRIAGE_INSTRUCTION, "gate": GATE_INSTRUCTION}[mode]
-    response = client.messages.create(
-        model=model,
-        # A ceiling, not a cost: Haiku answers in ~1,000 tokens, but models that think
-        # first (Sonnet 5.5 / Opus 5.5) count their thinking toward this limit.
-        max_tokens=16000,
-        system=[
-            {"type": "text", "text": SYSTEM_PROMPT},
-            # The quick pass has a smaller schema, so its prompt needs this extra guidance to
-            # reach Haiku's 4,096-token minimum for prompt caching (and it improves accuracy).
-            *([{"type": "text", "text": TRIAGE_GUIDE}] if mode != "full" else []),
-            *([{"type": "text", "text": GATE_GUIDE}] if mode == "gate" else []),
-            # Stable per user, so it sits before the cache breakpoint with the instructions.
-            {"type": "text", "text": user_config_block(user), "cache_control": {"type": "ephemeral"}},
-        ],
-        messages=[{
-            "role": "user",
-            "content": (f"Today's date: {today}\nPost date: {posted_at or 'unknown'}\n\n"
-                        f"<post>\n{post_text}\n</post>" + instruction),
-        }],
-        output_config={"format": {"type": "json_schema", "schema": schema}},
-    )
-    u = response.usage
-    usage = {
-        "input_tokens": u.input_tokens,
-        "output_tokens": u.output_tokens,
-        "cache_read_tokens": u.cache_read_input_tokens or 0,
-        "cache_write_tokens": u.cache_creation_input_tokens or 0,
-    }
-    cost = cost_usd(model, usage)
-    if response.stop_reason != "end_turn":
-        raise AnalysisError(f"model stopped with stop_reason={response.stop_reason}", usage, cost)
-    raw_text = next(b.text for b in response.content if b.type == "text")
+    system = [
+        {"type": "text", "text": SYSTEM_PROMPT},
+        # The quick pass has a smaller schema, so its prompt needs this extra guidance to
+        # reach Haiku's 4,096-token minimum for prompt caching (and it improves accuracy).
+        *([{"type": "text", "text": TRIAGE_GUIDE}] if mode != "full" else []),
+        *([{"type": "text", "text": GATE_GUIDE}] if mode == "gate" else []),
+        # Stable per user, so it sits before the cache breakpoint with the instructions.
+        {"type": "text", "text": user_config_block(user), "cache_control": {"type": "ephemeral"}},
+    ]
+    content = (f"Today's date: {today}\nPost date: {posted_at or 'unknown'}\n\n"
+               f"<post>\n{post_text}\n</post>" + instruction)
+    if hasattr(client, "json_call"):
+        # providers.Router: the stage's provider (Anthropic or OpenAI-compatible), with rate
+        # limits, schema check, one retry and fallback to Anthropic.
+        raw_text, usage, cost, label = client.json_call(mode, system, content, schema)
+    else:
+        # A plain Anthropic client. max_tokens is a ceiling, not a cost: Haiku answers in
+        # ~1,000 tokens, but models that think first count their thinking toward it.
+        from .providers import AnthropicProvider
+        raw_text, usage, cost = AnthropicProvider(client, model).call(system, content, schema)
+        label = model
+    usage = {**usage, "model_label": label}
     parsed = json.loads(raw_text)
     if mode == "gate":
         return parsed, raw_text, usage, cost

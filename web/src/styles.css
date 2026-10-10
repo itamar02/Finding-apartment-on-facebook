@@ -740,3 +740,79 @@ main {
   border-bottom: 1px solid var(--border);
   padding-bottom: 6px;
 }
+
+/* --- phase 3: follow-ups, prices, edits, settings --- */
+
+.tag {
+  font-size: 0.75rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--review);
+  color: var(--review);
+}
+
+.price-hist {
+  font-size: 0.85rem;
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.price-hist.drop {
+  color: var(--pass);
+  font-weight: 600;
+}
+
+.followups {
+  background: var(--surface);
+  border: 1px solid var(--review);
+  border-radius: 14px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.followups-head {
+  border: 0;
+  background: none;
+  font-weight: 600;
+  width: 100%;
+  text-align: start;
+  padding: 4px 0;
+}
+
+.followup {
+  border-top: 1px solid var(--border);
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.versions summary {
+  cursor: pointer;
+  color: var(--accent);
+}
+
+.warning {
+  border-inline-start: 3px solid var(--review);
+  padding: 6px 10px;
+  background: var(--surface-2);
+  border-radius: 6px;
+}
+
+.provider {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.time {
+  width: auto;
+}
+
+.check select {
+  width: auto;
+  max-width: 50%;
+}

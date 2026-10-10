@@ -72,6 +72,20 @@ export default function App() {
     reloadMeta();
   }, [reloadMeta]);
 
+  // Notifications open the app at /#post=<id>.
+  useEffect(() => {
+    const fromHash = () => {
+      const m = location.hash.match(/post=(\w+)/);
+      if (m) {
+        setOpenId(m[1]);
+        history.replaceState(null, "", location.pathname);
+      }
+    };
+    fromHash();
+    window.addEventListener("hashchange", fromHash);
+    return () => window.removeEventListener("hashchange", fromHash);
+  }, []);
+
   useEffect(() => {
     try {
       localStorage.setItem("filters", JSON.stringify(filters));

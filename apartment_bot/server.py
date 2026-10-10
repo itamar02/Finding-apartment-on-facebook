@@ -5,6 +5,7 @@ Changes also need the header "X-ApartmentBot: 1", which a page from another site
 send without the browser asking first, so a link elsewhere can't change anything here.
 """
 import asyncio
+from contextlib import asynccontextmanager
 import os
 import secrets
 import subprocess
@@ -16,7 +17,10 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-from . import auth, db as dbmod, feed, gpt_io, groups as groups_mod, settings, statuses
+from . import (auth, db as dbmod, feed, followups, gpt_io, groups as groups_mod, notify, prices, providers,
+               settings, statuses)
+from .ratelimit import RateLimiter
+from .scheduler import Scheduler
 from .config import get_user
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
@@ -62,15 +66,50 @@ class DiscoverIn(BaseModel):
     score: bool = False
 
 
+class SnoozeIn(BaseModel):
+    hours: float = 24
+
+
+class PushSubIn(BaseModel):
+    endpoint: str
+    keys: dict = {}
+
+
+class TelegramIn(BaseModel):
+    token: str
+    chat_id: str
+
+
+class AiIn(BaseModel):
+    ai_providers: list[dict]
+    ai_stages: dict
+    anthropic_limits: dict = {}
+
+
+class KeyIn(BaseModel):
+    key: str = ""
+
+
 class ReplyIn(BaseModel):
     text: str
     override_human: bool = False
 
 
-def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secure_cookie=True):
+def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secure_cookie=True,
+               run_scheduler=True):
     user = get_user(cfg, user_id)
     uid = user["id"]
-    app = FastAPI(title="ApartmentBot", docs_url=None, redoc_url=None, openapi_url=None)
+    scheduler = Scheduler(cfg, uid, db_path)
+
+    @asynccontextmanager
+    async def lifespan(_app):
+        if run_scheduler:
+            scheduler.start()
+        yield
+        scheduler.stop()
+
+    app = FastAPI(title="ApartmentBot", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+    app.state.scheduler = scheduler
 
     def get_db():
         db = dbmod.connect(db_path, check_same_thread=False)
@@ -142,6 +181,9 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
         card = feed.post_detail(db, cfg, uid, post_id)
         if not card:
             raise HTTPException(404, "unknown post")
+        card["price_history"] = prices.history(db, post_id)
+        card["versions"] = [dict(v) for v in db.execute(
+            "SELECT id, kind, seen_at, text FROM post_versions WHERE post_id = ? ORDER BY id", (post_id,))]
         return card
 
     def _status_result(db, post_id, old):
@@ -324,6 +366,127 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
     @app.post("/api/gpt/apply")
     def gpt_apply(body: ReplyIn, db=Depends(get_db)):
         return gpt_io.apply(db, uid, body.text, override_human=body.override_human)
+
+    # --- background scheduler -------------------------------------------------------------------
+
+    @app.get("/api/scheduler")
+    def scheduler_state(db=Depends(get_db)):
+        return {**scheduler.state, "settings": settings.get(db, "scheduler")}
+
+    @app.post("/api/scheduler/run")
+    def scheduler_run():
+        if scheduler.state["running"]:
+            raise HTTPException(409, "already running")
+        scheduler.run_now()
+        return {"ok": True}
+
+    # --- notifications ----------------------------------------------------------------------
+
+    @app.get("/api/notifications")
+    def recent_notifications(db=Depends(get_db)):
+        rows = db.execute("SELECT id, kind, post_id, title, body, created_at, sent_at, channels, error"
+                          " FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 50", (uid,)).fetchall()
+        tg = notify.telegram_config()
+        return {"items": [dict(r) for r in rows],
+                "telegram": {"configured": bool(tg), "from_watchdog": bool(tg and tg.get("from_watchdog"))},
+                "push_devices": db.execute("SELECT count(*) FROM push_subscriptions WHERE user_id = ?",
+                                           (uid,)).fetchone()[0]}
+
+    @app.get("/api/push/key")
+    def push_key():
+        return {"public_key": notify.vapid_keys()["public_key"]}
+
+    @app.post("/api/push/subscribe")
+    def push_subscribe(body: PushSubIn, db=Depends(get_db)):
+        notify.add_subscription(db, uid, body.model_dump())
+        return {"ok": True}
+
+    @app.post("/api/push/unsubscribe")
+    def push_unsubscribe(body: PushSubIn, db=Depends(get_db)):
+        notify.remove_subscription(db, body.endpoint)
+        return {"ok": True}
+
+    @app.put("/api/telegram")
+    def set_telegram(body: TelegramIn):
+        notify.save_telegram(body.token, body.chat_id)
+        return {"ok": True}
+
+    @app.post("/api/notifications/test")
+    def test_notification(db=Depends(get_db)):
+        conf = settings.get(db, "notifications")
+        if not conf.get("enabled"):
+            raise HTTPException(400, "notifications are turned off")
+        notify.queue(db, uid, "test", f"test:{statuses.now_iso()}", "בדיקה מ-ApartmentBot", "ככה ייראו ההתראות.")
+        if notify.in_quiet_hours(conf.get("quiet_hours")):
+            return {"sent": 0, "error": None, "note": "quiet hours: it will be sent when they end"}
+        n = notify.deliver_pending(db, uid)
+        last = db.execute("SELECT error FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+                          (uid,)).fetchone()
+        return {"sent": n, "error": last[0] if last else None}
+
+    # --- follow-ups -----------------------------------------------------------------------------
+
+    @app.get("/api/followups")
+    def due_followups(db=Depends(get_db)):
+        due = followups.due(db, uid)
+        if not due:
+            return []
+        cards = {c["post_id"]: c for c in feed.query_posts(
+            db, cfg, uid, post_ids=[d["post_id"] for d in due], limit=len(due))["items"]}
+        return [{**d, "card": cards.get(d["post_id"])} for d in due]
+
+    @app.post("/api/followups/{post_id}/snooze")
+    def snooze_followup(post_id: str, body: SnoozeIn, db=Depends(get_db)):
+        try:
+            followups.snooze(db, uid, post_id, body.hours)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        return {"ok": True}
+
+    @app.post("/api/followups/{post_id}/dismiss")
+    def dismiss_followup(post_id: str, db=Depends(get_db)):
+        try:
+            followups.dismiss(db, uid, post_id)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        return {"ok": True}
+
+    # --- AI providers -------------------------------------------------------------------------
+
+    def _ai_state(db):
+        s = settings.get_all(db)
+        keys = providers.load_keys()
+        status = [{"id": p["id"], "has_key": bool(keys.get(p["id"])),
+                   "remaining_today": RateLimiter(db, p["id"], p.get("per_minute"), p.get("per_day")).remaining_today()}
+                  for p in s["ai_providers"]]
+        return {"ai_providers": s["ai_providers"], "ai_stages": s["ai_stages"],
+                "anthropic_limits": s["anthropic_limits"], "status": status, "presets": providers.PRESETS,
+                "stages": list(providers.STAGES), "anthropic_model": cfg["app"]["ai_model"]}
+
+    @app.get("/api/ai")
+    def ai_settings(db=Depends(get_db)):
+        return _ai_state(db)
+
+    @app.put("/api/ai")
+    def save_ai(body: AiIn, db=Depends(get_db)):
+        ids = set()
+        for p in body.ai_providers:
+            if not p.get("id") or not p.get("base_url") or not p.get("model"):
+                raise HTTPException(400, "every provider needs id, base_url and model")
+            if p["id"] == providers.ANTHROPIC or p["id"] in ids:
+                raise HTTPException(400, f"provider id {p['id']!r} is taken")
+            ids.add(p["id"])
+        bad = [v for v in body.ai_stages.values() if v != providers.ANTHROPIC and v not in ids]
+        if bad:
+            raise HTTPException(400, f"unknown provider in stages: {bad}")
+        settings.put(db, {"ai_providers": body.ai_providers, "ai_stages": body.ai_stages,
+                          "anthropic_limits": body.anthropic_limits})
+        return _ai_state(db)
+
+    @app.put("/api/ai/keys/{provider_id}")
+    def save_ai_key(provider_id: str, body: KeyIn):
+        providers.save_key(provider_id, body.key)
+        return {"ok": True}
 
     # --- the web app ----------------------------------------------------------------------------
 

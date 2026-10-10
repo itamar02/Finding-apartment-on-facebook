@@ -17,15 +17,41 @@ DEFAULTS = {
     # Searches used by discover_groups.py. None means: "דירות להשכרה <city>" and
     # "שותפים <city>" for every city in listing.search_cities.
     "group_search_queries": None,
+    # AI providers (see providers.py). Keys are kept in secrets/ai_keys.json, not here.
+    "ai_providers": [],
+    "ai_stages": {},
+    "anthropic_limits": {},
+    # Hours a post may sit in a status before a follow-up reminder.
+    "followup_hours": {"contacted": 48, "awaiting_reply": 72, "needs_details": 24},
+    "notifications": {
+        "enabled": True,
+        "channel": "push",                 # push | telegram | both
+        "decisions": ["PASS", "NEEDS_REVIEW"],
+        "price_ceiling": None,             # don't announce listings above this rent
+        "quiet_hours": {"start": "23:00", "end": "07:00"},   # held back, sent afterwards
+        "edits": True,                     # a post I've seen was edited
+        "followups": True,
+        "price_drop": True,
+        "price_drop_min": 200,             # ILS
+    },
+    # Background scan -> analyze -> notify (app server).
+    "scheduler": {"enabled": False, "interval_minutes": 30, "quiet_hours": {"start": "01:00", "end": "07:00"},
+                  "analyze": True},
+    # The app's address (from tailscale serve), used in links inside Telegram messages.
+    "app_url": None,
 }
 
 
 def get_all(db):
     """Every setting: the stored value, or the default."""
-    out = dict(DEFAULTS)
+    out = json.loads(json.dumps(DEFAULTS))   # a copy: callers may change it
     for key, value in db.execute("SELECT key, value_json FROM app_settings"):
         if key in DEFAULTS:
-            out[key] = json.loads(value)
+            value = json.loads(value)
+            # A stored group of settings keeps defaults for keys added later.
+            if isinstance(DEFAULTS[key], dict) and isinstance(value, dict) and key not in ("ai_stages", "anthropic_limits", "followup_hours"):
+                value = {**DEFAULTS[key], **value}
+            out[key] = value
     return out
 
 

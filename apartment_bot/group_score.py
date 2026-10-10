@@ -7,8 +7,7 @@ import json
 
 import anthropic
 
-from . import groups as groups_mod
-from .ai_filter import cost_usd
+from . import groups as groups_mod, providers
 from .config import get_api_key
 
 SCHEMA = {
@@ -36,26 +35,19 @@ def score_unscored(db, cfg, user, batch=40):
     todo = [g for g in groups_mod.list_groups(db) if g["relevance_score"] is None]
     if not todo:
         return 0, 0.0
-    client = anthropic.Anthropic(api_key=get_api_key(cfg))
-    model = cfg["app"]["ai_model"]
+    key = get_api_key(cfg)
+    router = providers.Router(db, cfg, lambda: anthropic.Anthropic(api_key=key))   # stage "group_score"
     rated, cost = 0, 0.0
     for i in range(0, len(todo), batch):
         chunk = todo[i:i + batch]
         listing = json.dumps([{"id": g["id"], "name": g["name"], "description": g["description"],
                                "members": g["member_count"], "privacy": g["privacy"]} for g in chunk],
                              ensure_ascii=False)
-        resp = client.messages.create(
-            model=model, max_tokens=8000,
-            messages=[{"role": "user", "content": PROMPT.format(
-                cities=", ".join(user["listing"]["search_cities"]),
-                types=", ".join(user["listing"]["allowed_types"]), groups=listing)}],
-            output_config={"format": {"type": "json_schema", "schema": SCHEMA}},
-        )
-        u = resp.usage
-        cost += cost_usd(model, {"input_tokens": u.input_tokens, "output_tokens": u.output_tokens,
-                                 "cache_read_tokens": u.cache_read_input_tokens or 0,
-                                 "cache_write_tokens": u.cache_creation_input_tokens or 0}) or 0.0
-        text = next(b.text for b in resp.content if b.type == "text")
+        prompt = PROMPT.format(cities=", ".join(user["listing"]["search_cities"]),
+                               types=", ".join(user["listing"]["allowed_types"]), groups=listing)
+        text, _usage, call_cost, _label = router.json_call(
+            "group_score", [{"type": "text", "text": "You rate Facebook groups. Answer in JSON."}], prompt, SCHEMA)
+        cost += call_cost or 0.0
         ids = {g["id"] for g in chunk}
         for r in json.loads(text)["groups"]:
             if r["id"] in ids:

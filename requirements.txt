@@ -5,5 +5,6 @@ pyyaml>=6.0
 # Phone app server (app_server.py)
 fastapi>=0.115
 uvicorn>=0.30
+pywebpush>=2.0       # notifications to the installed app
 # Tests (python -m pytest)
 pytest>=8

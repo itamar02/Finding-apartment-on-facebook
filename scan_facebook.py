@@ -19,7 +19,7 @@ import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from apartment_bot import db as dbmod, groups as groups_mod
+from apartment_bot import db as dbmod, groups as groups_mod, versions
 from apartment_bot.config import ConfigError, load_config, max_post_age_days
 from apartment_bot.db import POST_IMAGES_DDL
 import bot_chrome
@@ -106,9 +106,14 @@ def run_harness(group_id, known_ids, max_posts, stop_after_known, cutoff_iso, ha
 
 
 def store_result(db, group_id, result, started):
-    """Insert unseen posts and log the run. Returns the number of new posts."""
+    """Insert unseen posts and log the run. Returns the number of new posts.
+
+    A post that is already stored keeps its original row; if its text changed, the new
+    text is stored as a version (versions.py), so edits are not lost.
+    """
     new = 0
     seen_at = now_iso()
+    has_versions = bool(db.execute("SELECT 1 FROM sqlite_master WHERE name = 'post_versions'").fetchone())
     with db:
         for p in result["posts"]:
             cur = db.execute(
@@ -123,6 +128,8 @@ def store_result(db, group_id, result, started):
                     "INSERT OR IGNORE INTO post_images (post_id, idx, url, alt, more_hidden) VALUES (?,?,?,?,?)",
                     [(p["post_id"], i, ph["url"], ph["alt"], p.get("more_photos") or 0)
                      for i, ph in enumerate(p.get("photos") or [], 1)])
+            elif has_versions:
+                versions.record_if_changed(db, p["post_id"], p["text"], p["truncated"])
         db.execute(
             "INSERT INTO scan_runs (group_id, started_at, finished_at, scanned, new_posts, unidentified,"
             " stop_reason, sort_label, error) VALUES (?,?,?,?,?,?,?,?,?)",

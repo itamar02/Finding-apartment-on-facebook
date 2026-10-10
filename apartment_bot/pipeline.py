@@ -4,6 +4,7 @@ from datetime import datetime
 
 from . import ai_filter, hard_rules
 from .config import user_config_hash
+from .db import EFFECTIVE_TEXT_SQL
 
 _USAGE_KEYS = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens")
 
@@ -11,13 +12,20 @@ _USAGE_KEYS = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_writ
 def pending_posts(db, user_id, limit=None, post_ids=None, force=False):
     """Posts without a successful analysis for this user and pipeline version, newest first."""
     # Listings the human rejected by hand never need the AI.
-    sql = ("SELECT * FROM posts p WHERE coalesce(p.text, '') != ''"
+    # An edited post (post_versions) is analyzed with its current text, and again after an edit.
+    edited = _has_versions(db)
+    text_sql = EFFECTIVE_TEXT_SQL if edited else "p.text"
+    sql = (f"SELECT p.post_id, p.group_id, p.author, p.author_id, p.posted_at, p.posted_at_raw,"
+           f" {text_sql} AS text, p.text_truncated, p.url, p.first_seen_at"
+           " FROM posts p WHERE coalesce(p.text, '') != ''"
            " AND NOT EXISTS (SELECT 1 FROM human_decisions h WHERE h.post_id = p.post_id AND h.user_id = ?"
            " AND h.decision = 'REJECT')")
     params = [user_id]
     if not force:
+        newer_version = (" AND a.analyzed_at >= coalesce((SELECT max(v.seen_at) FROM post_versions v"
+                         " WHERE v.post_id = p.post_id), '')") if edited else ""
         sql += (" AND NOT EXISTS (SELECT 1 FROM post_analyses a WHERE a.post_id = p.post_id"
-                " AND a.user_id = ? AND a.pipeline_version = ? AND a.status = 'ok')")
+                " AND a.user_id = ? AND a.pipeline_version = ? AND a.status = 'ok'" + newer_version + ")")
         params += [user_id, ai_filter.PIPELINE_VERSION]
     if post_ids:
         sql += f" AND p.post_id IN ({','.join('?' * len(post_ids))})"
@@ -27,6 +35,10 @@ def pending_posts(db, user_id, limit=None, post_ids=None, force=False):
         sql += " LIMIT ?"
         params.append(limit)
     return db.execute(sql, params).fetchall()
+
+
+def _has_versions(db):
+    return bool(db.execute("SELECT 1 FROM sqlite_master WHERE name = 'post_versions'").fetchone())
 
 
 def analyze_one(db, client, model, user, post, now=None, early_stop=False):
@@ -61,16 +73,19 @@ def analyze_one(db, client, model, user, post, now=None, early_stop=False):
         if early_stop:
             gate = ai_filter.analyze_post(*args, mode="gate")
             _spend(spent, gate[2], gate[3])
+            _label(row, gate[2])
             rejection = _gate_rejection(gate[0], user)
             if rejection:
                 return _store_gate(db, row, gate[0], gate[1], rejection, spent)
             quick = ai_filter.analyze_post(*args, mode="triage")
             _spend(spent, quick[2], quick[3])
+            _label(row, quick[2])
             judged = _judge(db, post, quick[0], user, now)
             if judged[1][0] == "REJECT":
                 return _store(db, row, quick[0], quick[1], judged, spent)
         full = ai_filter.analyze_post(*args, mode="full")
         _spend(spent, full[2], full[3])
+        _label(row, full[2])
     except ai_filter.AnalysisError as e:
         msg, usage, cost = e.args
         _spend(spent, usage, cost)
@@ -164,6 +179,18 @@ def _store(db, row, parsed, raw_text, judged, spent):
     return row
 
 
+def _label(row, usage):
+    """Record which provider/model answered (several stages may use different ones)."""
+    label = usage.get("model_label")
+    if not label:
+        return
+    if row.get("_labels") is None:
+        row["_labels"] = []
+    if label not in row["_labels"]:
+        row["_labels"].append(label)
+    row["model"] = " + ".join(row["_labels"])
+
+
 def _spend(spent, usage, cost):
     for k in _USAGE_KEYS:
         spent["usage"][k] += usage[k]
@@ -175,6 +202,7 @@ def _spend_cols(spent):
 
 
 def _insert(db, row):
+    row.pop("_labels", None)
     cols = list(row)
     with db:
         db.execute(f"INSERT INTO post_analyses ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",

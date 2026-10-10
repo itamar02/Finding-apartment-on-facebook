@@ -174,7 +174,67 @@ MIGRATIONS = [
         applied    INTEGER NOT NULL
     );
     """,
+    # 5 -> 6: background work. Edited posts get new versions here (posts stays as first
+    # seen); repeated ads are grouped into listings with a price history; notifications,
+    # follow-up reminders, push subscriptions and AI calls (for rate limits) are logged.
+    """
+    CREATE TABLE post_versions (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        post_id        TEXT NOT NULL,
+        text           TEXT NOT NULL,
+        text_truncated INTEGER NOT NULL DEFAULT 0,
+        kind           TEXT NOT NULL,          -- edit | expanded (a cut text later read in full)
+        seen_at        TEXT NOT NULL
+    );
+    CREATE INDEX idx_post_versions_post ON post_versions(post_id, id);
+    CREATE TABLE listing_posts (               -- the same apartment posted more than once
+        post_id    TEXT PRIMARY KEY,
+        listing_id TEXT NOT NULL,              -- the first post of the group
+        matched_by TEXT NOT NULL,              -- self | text | phone | author_text
+        rent_ils   INTEGER,
+        posted_at  TEXT
+    );
+    CREATE INDEX idx_listing_posts_listing ON listing_posts(listing_id);
+    CREATE TABLE notifications (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id    TEXT NOT NULL,
+        kind       TEXT NOT NULL,              -- new_listing | post_edited | followup | price_drop
+        post_id    TEXT,
+        dedupe_key TEXT NOT NULL,              -- one notification per event
+        title      TEXT NOT NULL,
+        body       TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        sent_at    TEXT,                       -- NULL while waiting (quiet hours) or failing
+        channels   TEXT,                       -- where it went
+        error      TEXT,
+        UNIQUE (user_id, dedupe_key)
+    );
+    CREATE TABLE followups (                   -- snooze / dismiss per post and status period
+        post_id        TEXT NOT NULL,
+        user_id        TEXT NOT NULL,
+        status_since   TEXT NOT NULL,          -- post_status updated_at|status this applies to
+        snoozed_until  TEXT,
+        dismissed      INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (post_id, user_id, status_since)
+    );
+    CREATE TABLE push_subscriptions (
+        endpoint   TEXT PRIMARY KEY,
+        user_id    TEXT NOT NULL,
+        keys_json  TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    CREATE TABLE ai_calls (
+        id        INTEGER PRIMARY KEY AUTOINCREMENT,
+        provider  TEXT NOT NULL,
+        called_at REAL NOT NULL                -- unix time
+    );
+    CREATE INDEX idx_ai_calls ON ai_calls(provider, called_at);
+    """,
 ]
+
+# A post's current text: its latest version if it was edited, else the text first seen.
+EFFECTIVE_TEXT_SQL = ("coalesce((SELECT v.text FROM post_versions v WHERE v.post_id = p.post_id"
+                      " ORDER BY v.id DESC LIMIT 1), p.text)")
 
 
 def connect(path=DB_PATH, check_same_thread=True):

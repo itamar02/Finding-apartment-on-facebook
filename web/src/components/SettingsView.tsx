@@ -2,6 +2,8 @@ import { useState } from "react";
 import { api, StatusDef } from "../api";
 import { useApp } from "../App";
 import GptTool from "./GptTool";
+import NotifySettings from "./NotifySettings";
+import AiSettings from "./AiSettings";
 
 const PLACEHOLDERS = ["{name}", "{area}", "{street}", "{group}", "{price}"];
 const SAMPLE: Record<string, string> = { name: "דנה", area: "פלורנטין", street: "", group: "דירות בתל אביב", price: "5,000" };
@@ -52,6 +54,10 @@ export default function SettingsView({ onLogout }: { onLogout: () => void }) {
       </button>
 
       <StatusEditor />
+
+      <NotifySettings />
+
+      <AiSettings />
 
       <GptTool />
 

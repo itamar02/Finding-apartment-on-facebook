@@ -306,6 +306,46 @@ folder. `tailscale serve --bg` already survives restarts.
   `reject.py --list` and the exports' HUMAN REJECTED section only show your own. The export
   holds other people's phone numbers - keep that in mind before pasting it into a service.
 
+### Automatic scanning, notifications and reminders
+
+In **Settings**:
+
+- **Automatic scanning**: the server runs `scan_facebook.py`, then `analyze_posts.py --all`,
+  then sends notifications, every N minutes (default 30), except during its quiet hours. It
+  is off until you turn it on; *Scan now* runs it once. This replaces the watchdog - don't
+  run both, they would take turns waiting for the scan lock.
+- **Notifications** go to the installed app (tap *Turn on on this phone*; on an iPhone this
+  only works from the home-screen app, iOS 16.4+) and/or a Telegram bot (token from
+  BotFather + your chat id; if the watchdog's bot is set up it is used automatically). You
+  choose which AI decisions are announced, a price ceiling, quiet hours (notifications wait
+  and are sent when they end), and whether to be told about:
+  - **edited posts**: when a post you have already seen (opened in the app, or given a
+    status there or through a GPT import) is edited, with a short "added / removed" note.
+    The scanner keeps the first text in `posts` and stores every later edit in
+    `post_versions`; the app shows the current text and the earlier versions, and an edited
+    post is analyzed again. The scanner only re-reads posts near the top of each group, so an
+    edit to an old post can go unnoticed.
+  - **follow-ups**: a listing that stays in *Contacted*, *Awaiting reply* or *Needs details*
+    longer than the hours you set per status. They are also listed at the top of the feed
+    with *Snooze a day* and *Dismiss*.
+  - **price drops**: the same apartment posted again for less (see below).
+- **Price tracking**: posts are grouped into one apartment when the text is identical, or
+  when they share a phone number or an author and the text is at least 80% similar. A card
+  shows the earlier prices and highlights a drop.
+
+### Free or cheaper AI providers
+
+Settings > *AI providers* lets each analysis stage (gate, quick pass, full analysis, group
+rating) use any OpenAI-compatible API instead of Anthropic: Groq, OpenRouter, Gemini's
+OpenAI-compatible endpoint, or a local server. Presets fill in the address and a model; the
+API key is stored only in `secrets/ai_keys.json` (never in the database, which gets copied
+and sent). Per-minute and per-day limits queue requests or stop using that provider for the
+day. Every answer is checked against the same JSON schema as the Anthropic one; an invalid
+answer is retried once, and then - like a provider that fails or hits its daily limit - the
+request falls back to Anthropic. Free tiers may use what you send them for training, and the
+posts contain other people's names and phone numbers. Models and free limits change often;
+check each provider's page.
+
 ### Developing the app
 
 `python app_server.py --insecure-cookie` in one terminal and `cd web && npm run dev` in
@@ -412,6 +452,9 @@ key gives a plain message saying which variable or setting to fix.
 | `human_decisions` | `reject.py` | Listings you rejected by hand: `post_id`, `user_id`, `decision`, `note`, `decided_at` |
 | `fb_groups` | the app, `discover_groups.py` | The groups to scan (`selected`) and groups found: name, members, privacy, membership, optional AI relevance |
 | `gpt_imports` | the app | Every status import from an external AI and what it changed |
+| `post_versions` | `scan_facebook.py` | Later texts of edited posts (`posts` keeps the first one) |
+| `listing_posts` | the app | Posts grouped into one apartment, with each post's rent (price history) |
+| `notifications`, `followups`, `push_subscriptions`, `ai_calls` | the app | Sent / waiting notifications, snoozed or dismissed reminders, phones with notifications on, AI calls for rate limits |
 | `statuses`, `post_status`, `post_status_history`, `post_notes`, `post_seen`, `app_settings` | the phone app, `reject.py` | Your own status per listing (current + append-only history, source `human` / `gpt` / `system`), the editable status list, notes, which listings you opened, app settings |
 | `post_analyses` | `analyze_posts.py` | One row per analysis attempt: AI decision/rule/reason, final decision/rule/reason, `decided_by`, `facts_json`, `hard_rules_json`, `raw_response_json`, `model`, `pipeline_version`, `config_hash`, token counts, `cost_usd`, `analyzed_at`, `status` (`ok`/`error`), `error` |
 
@@ -489,13 +532,21 @@ apartment_bot/
   groups.py             the groups to scan (fb_groups table, seeded from config.yaml)
   group_score.py        optional AI relevance rating for groups
   gpt_io.py             export to / import from an external chat AI
+  versions.py           edited posts (post_versions)
+  prices.py             repeated listings and price history
+  followups.py          follow-up reminders
+  notify.py             notifications: Web Push, Telegram, quiet hours
+  scheduler.py          background scan -> analyze -> notify in the app server
+  providers.py          AI provider per stage (Anthropic / OpenAI-compatible), schema check, fallback
+  ratelimit.py          per-minute / per-day request limits
   server.py             FastAPI routes
 web/                    the phone app (React + Vite + TypeScript); build with npm run build
 tests/                  python -m pytest
 ```
 
 Created at run time and git-ignored: `apartments.db` (+ backups), `pictures/`, exported
-`results*.txt` / `results*.json` / `out.*`, `.scan.lock`, `secrets/` (the app's login token),
+`results*.txt` / `results*.json` / `out.*`, `.scan.lock`, `*.log`, `secrets/` (the app's login
+token, Web Push keys, Telegram bot, AI keys),
 `uploads/`, `web/node_modules/`, `web/dist/`.
 
 ## Extending

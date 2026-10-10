@@ -65,6 +65,8 @@ export interface Card {
   status: MyStatus | null;
   notes_count: number;
   photos: Photos;
+  edited: boolean;
+  price_history: PricePoint[];
 }
 
 export interface Note {
@@ -88,12 +90,88 @@ export interface Detail extends Card {
   checks: { rule: string; status: string; detail: string }[];
   notes: Note[];
   history: HistoryRow[];
+  versions: { id: number; kind: "edit" | "expanded"; seen_at: string; text: string }[];
+}
+
+export interface QuietHours {
+  start: string;
+  end: string;
+}
+
+export interface NotificationSettings {
+  enabled: boolean;
+  channel: "push" | "telegram" | "both";
+  decisions: Decision[];
+  price_ceiling: number | null;
+  quiet_hours: QuietHours | null;
+  edits: boolean;
+  followups: boolean;
+  price_drop: boolean;
+  price_drop_min: number;
+}
+
+export interface SchedulerSettings {
+  enabled: boolean;
+  interval_minutes: number;
+  quiet_hours: QuietHours | null;
+  analyze: boolean;
 }
 
 export interface Settings {
   whatsapp_template: string;
   recent_days: number | null;
   group_search_queries: string[] | null;
+  followup_hours: Record<string, number>;
+  notifications: NotificationSettings;
+  scheduler: SchedulerSettings;
+  app_url: string | null;
+}
+
+export interface ProviderConf {
+  id: string;
+  label?: string;
+  base_url: string;
+  model: string;
+  json_mode?: "json_schema" | "json_object";
+  per_minute?: number | null;
+  per_day?: number | null;
+  price_in?: number | null;
+  price_out?: number | null;
+}
+
+export interface AiState {
+  ai_providers: ProviderConf[];
+  ai_stages: Record<string, string>;
+  anthropic_limits: { per_minute?: number | null; per_day?: number | null };
+  status: { id: string; has_key: boolean; remaining_today: number | null }[];
+  presets: ProviderConf[];
+  stages: string[];
+  anthropic_model: string;
+}
+
+export interface SchedulerState {
+  running: boolean;
+  step: string | null;
+  last_start: string | null;
+  last_end: string | null;
+  last_result: string | null;
+  next_run: string | null;
+  settings: SchedulerSettings;
+}
+
+export interface PricePoint {
+  post_id: string;
+  rent_ils: number | null;
+  posted_at: string | null;
+}
+
+export interface FollowUp {
+  post_id: string;
+  status: string;
+  note: string | null;
+  since: string;
+  overdue_hours: number;
+  card: Card | null;
 }
 
 export interface Group {
@@ -224,6 +302,25 @@ export const api = {
   addGroup: (url: string) => call<{ id: string }>("/api/groups", send("POST", { url })),
   startDiscovery: (score: boolean) => call("/api/groups/discover", send("POST", { score })),
   discovery: () => call<{ running: boolean; exit_code: number | null; log: string[] }>("/api/groups/discover"),
+  scheduler: () => call<SchedulerState>("/api/scheduler"),
+  runScheduler: () => call("/api/scheduler/run", send("POST")),
+  notifications: () =>
+    call<{
+      items: { id: number; kind: string; post_id: string | null; title: string; body: string; created_at: string; sent_at: string | null; error: string | null }[];
+      telegram: { configured: boolean; from_watchdog: boolean };
+      push_devices: number;
+    }>("/api/notifications"),
+  pushKey: () => call<{ public_key: string }>("/api/push/key"),
+  pushSubscribe: (sub: PushSubscriptionJSON) => call("/api/push/subscribe", send("POST", sub)),
+  pushUnsubscribe: (sub: PushSubscriptionJSON) => call("/api/push/unsubscribe", send("POST", sub)),
+  saveTelegram: (token: string, chat_id: string) => call("/api/telegram", send("PUT", { token, chat_id })),
+  testNotification: () => call<{ sent: number; error: string | null; note?: string }>("/api/notifications/test", send("POST")),
+  followups: () => call<FollowUp[]>("/api/followups"),
+  snooze: (id: string, hours: number) => call(`/api/followups/${id}/snooze`, send("POST", { hours })),
+  dismissFollowup: (id: string) => call(`/api/followups/${id}/dismiss`, send("POST")),
+  ai: () => call<AiState>("/api/ai"),
+  saveAi: (v: Pick<AiState, "ai_providers" | "ai_stages" | "anthropic_limits">) => call<AiState>("/api/ai", send("PUT", v)),
+  saveAiKey: (id: string, key: string) => call(`/api/ai/keys/${encodeURIComponent(id)}`, send("PUT", { key })),
   gptExport: (includeOld: boolean) =>
     call<{ text: string; count: number; posts: unknown[]; prompt: string }>(`/api/gpt/export?include_old=${includeOld}`),
   gptPreview: (text: string) => call<GptPreview>("/api/gpt/preview", send("POST", { text })),

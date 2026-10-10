@@ -3,6 +3,7 @@ import { api, Card, Decision, Filters } from "../api";
 import { DEFAULT_FILTERS, useApp } from "../App";
 import { DECISION_LABEL, SOURCE_LABEL } from "../format";
 import PostCard from "./PostCard";
+import FollowUps from "./FollowUps";
 
 const PAGE = 30;
 
@@ -58,6 +59,7 @@ export default function Feed({ filters, setFilters }: { filters: Filters; setFil
         <span className="muted small grow-end">{total} מודעות</span>
       </div>
 
+      <FollowUps />
       {items.map((c) => (
         <PostCard key={c.post_id} card={c} />
       ))}

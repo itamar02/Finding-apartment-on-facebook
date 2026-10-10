@@ -13,7 +13,8 @@ def client(db, cfg, tmp_path, monkeypatch):
     monkeypatch.setattr(auth, "TOKEN_FILE", tmp_path / "secrets" / "app_token.txt")
     monkeypatch.setattr(auth, "PAIRING_FILE", tmp_path / "secrets" / "pairing.json")
     db_path = db.execute("PRAGMA database_list").fetchone()[2]
-    app = server.create_app(cfg, "me", db_path=db_path, web_dist=tmp_path / "dist", secure_cookie=False)
+    app = server.create_app(cfg, "me", db_path=db_path, web_dist=tmp_path / "dist", secure_cookie=False,
+                            run_scheduler=False)
     c = TestClient(app)
     code = auth.new_pairing_code()
     assert c.post("/api/pair", json={"code": code}).status_code == 200
@@ -25,7 +26,8 @@ def test_needs_pairing(db, cfg, tmp_path, monkeypatch):
     monkeypatch.setattr(auth, "TOKEN_FILE", tmp_path / "s" / "t.txt")
     monkeypatch.setattr(auth, "PAIRING_FILE", tmp_path / "s" / "p.json")
     db_path = db.execute("PRAGMA database_list").fetchone()[2]
-    c = TestClient(server.create_app(cfg, "me", db_path=db_path, web_dist=tmp_path, secure_cookie=False))
+    c = TestClient(server.create_app(cfg, "me", db_path=db_path, web_dist=tmp_path, secure_cookie=False,
+                                     run_scheduler=False))
     assert c.get("/api/meta").status_code == 401
     code = auth.new_pairing_code()
     assert c.post("/api/pair", json={"code": "00000000" if code != "00000000" else "1"}).status_code == 403
@@ -115,3 +117,11 @@ def test_settings_and_status_list(client):
 
 def test_web_app_not_built(client):
     assert client.get("/").status_code == 503
+
+
+def test_server_starts_with_scheduler(db, cfg, tmp_path):
+    db_path = db.execute("PRAGMA database_list").fetchone()[2]
+    app = server.create_app(cfg, "me", db_path=db_path, web_dist=tmp_path, secure_cookie=False)
+    with TestClient(app) as c:                     # runs the startup / shutdown hooks
+        assert c.get("/").status_code == 503
+        assert app.state.scheduler._thread.is_alive()

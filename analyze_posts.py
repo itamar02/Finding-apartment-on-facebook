@@ -15,7 +15,7 @@ from pathlib import Path
 
 import anthropic
 
-from apartment_bot import ai_filter, db as dbmod
+from apartment_bot import ai_filter, db as dbmod, providers
 from apartment_bot.config import ConfigError, get_api_key, get_user, load_config
 from apartment_bot.display import facts_lines, term_safe
 from apartment_bot.pictures import download_pictures
@@ -62,9 +62,11 @@ def main():
         return 0
 
     try:
-        client = anthropic.Anthropic(api_key=get_api_key(cfg))
+        api_key = get_api_key(cfg)   # Anthropic is the default and the fallback for every stage
     except ConfigError as e:
         sys.exit(f"API key: {e}")
+    # Each stage uses the provider chosen in the app (default: Anthropic); see providers.py.
+    client = providers.Router(db, cfg, lambda: anthropic.Anthropic(api_key=api_key))
     model = cfg["app"]["ai_model"]
     early_stop = bool(cfg["app"].get("stop_at_first_dealbreaker"))
     print(f"Analyzing {len(posts)} posts for user '{user['id']}' with {model} "
@@ -106,6 +108,8 @@ def main():
                         "facts": json.loads(row["facts_json"]),
                         "hard_rules": json.loads(row["hard_rules_json"])})
 
+    for note in dict.fromkeys(client.notes):
+        print(f"Note: {note}")
     n_ok = len(results)
     n_ai = n_ok - skipped_by_code
     summary = ", ".join(f"{k} {v}" for k, v in sorted(counts.items()))

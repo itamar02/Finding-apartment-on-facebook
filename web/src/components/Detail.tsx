@@ -3,7 +3,7 @@ import { api, Detail as DetailT } from "../api";
 import { useApp } from "../App";
 import { age, dateTime, DECISION_COLOR, DECISION_LABEL, money, SOURCE_LABEL, TYPE_LABEL } from "../format";
 import Gallery from "./Gallery";
-import { ContactButton } from "./PostCard";
+import { ContactButton, PriceHistory } from "./PostCard";
 import StatusPicker, { StatusChip, useStatusActions } from "./StatusPicker";
 
 const FACT_LABELS: [string, string][] = [
@@ -109,6 +109,7 @@ export default function Detail({ postId, onClose }: { postId: string; onClose: (
             <StatusChip status={d.status} onClick={() => setPicking(true)} />
             <span className="muted small grow-end">{age(d.posted_at ?? d.first_seen_at)}</span>
           </div>
+          <PriceHistory points={d.price_history} />
           {d.ai?.reason && (
             <p className="reason" dir="auto">
               {d.ai.reason}
@@ -133,6 +134,17 @@ export default function Detail({ postId, onClose }: { postId: string; onClose: (
             {d.text}
           </p>
           {d.text_truncated && <p className="muted small">הטקסט נקטע בסריקה; הנוסח המלא בפייסבוק.</p>}
+          {d.versions.some((v) => v.kind === "edit") && (
+            <details className="versions">
+              <summary className="small">המודעה נערכה ({d.versions.filter((v) => v.kind === "edit").length}). נוסחים קודמים</summary>
+              {[...d.versions].reverse().slice(1).map((v) => (
+                <div key={v.id} className="note">
+                  <div className="small muted">{dateTime(v.seen_at)}</div>
+                  <p dir="auto">{v.text}</p>
+                </div>
+              ))}
+            </details>
+          )}
 
           {facts && (
             <>

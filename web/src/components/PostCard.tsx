@@ -4,6 +4,21 @@ import { useApp } from "../App";
 import { age, DECISION_COLOR, DECISION_LABEL, factChips } from "../format";
 import StatusPicker, { StatusChip, useStatusActions } from "./StatusPicker";
 import Gallery from "./Gallery";
+import { money } from "../format";
+import type { PricePoint } from "../api";
+
+/** Earlier prices of the same apartment (reposts), oldest first; a drop is highlighted. */
+export function PriceHistory({ points }: { points: PricePoint[] }) {
+  if (!points || points.length < 2) return null;
+  const last = points[points.length - 1].rent_ils ?? 0;
+  const before = points[points.length - 2].rent_ils ?? 0;
+  return (
+    <div className={"price-hist" + (last < before ? " drop" : "")}>
+      {last < before ? "↓ ירידת מחיר: " : "פורסמה שוב: "}
+      {points.map((p) => money(p.rent_ils)).join(" ← ")}
+    </div>
+  );
+}
 
 export function ContactButton({ card }: { card: Card }) {
   const { contact } = useStatusActions();
@@ -32,6 +47,7 @@ export default function PostCard({ card }: { card: Card }) {
           {DECISION_LABEL[decision]}
         </span>
         <StatusChip status={card.status} onClick={() => setPicking(true)} />
+        {card.edited && <span className="tag">נערכה</span>}
         <span className="muted small grow-end">
           {card.group_name} · {age(card.posted_at ?? card.first_seen_at)}
         </span>
@@ -46,6 +62,7 @@ export default function PostCard({ card }: { card: Card }) {
           ))}
         </div>
       )}
+      <PriceHistory points={card.price_history} />
       {card.ai?.reason && (
         <p className="reason clamp3" dir="auto">
           {card.ai.reason}

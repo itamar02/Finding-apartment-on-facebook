@@ -6,8 +6,9 @@ the same "latest successful analysis per post and user" rule as report.py.
 import json
 from datetime import datetime, timedelta
 
-from . import groups as groups_mod, outreach, settings, statuses
+from . import groups as groups_mod, outreach, prices, settings, statuses
 from .contacts import contact_info
+from .db import EFFECTIVE_TEXT_SQL
 
 DECISIONS = ("PASS", "NEEDS_REVIEW", "REJECT", "PENDING")   # PENDING: not analyzed yet
 SORTS = ("newest", "price_asc", "price_desc")
@@ -15,8 +16,9 @@ CARD_FACTS = ("listing_type", "rent_ils", "total_monthly_ils_known", "city", "ne
               "location_summary_en", "rooms", "size_sqm", "floor", "move_in_date", "furnished", "broker")
 
 _BASE_SQL = """
-SELECT p.post_id, p.group_id, p.author, p.author_id, p.posted_at, p.text, p.text_truncated, p.url,
+SELECT p.post_id, p.group_id, p.author, p.author_id, p.posted_at, {text} AS text, p.text_truncated, p.url,
        p.first_seen_at,
+       (SELECT count(*) FROM post_versions v WHERE v.post_id = p.post_id AND v.kind = 'edit') AS edits,
        a.final_decision, a.final_reason, a.final_rule, a.decided_by, a.facts_json, a.analyzed_at,
        s.status, s.note AS status_note, s.source AS status_source, s.updated_at AS status_updated_at,
        (SELECT count(*) FROM post_notes n WHERE n.post_id = p.post_id AND n.user_id = :user) AS notes_count
@@ -41,7 +43,7 @@ def query_posts(db, cfg, user_id, *, decisions=None, statuses_=None, groups=None
     statuses_ may contain "none" for posts without a status of mine. Posts older than the
     recent window (settings.recent_days) are left out unless include_old or `since` is given.
     """
-    sql, params = _BASE_SQL, {"user": user_id}
+    sql, params = _BASE_SQL.format(text=EFFECTIVE_TEXT_SQL), {"user": user_id}
     if post_ids is not None:
         sql += f" AND p.post_id IN ({','.join(f':p{i}' for i in range(len(post_ids)))})"
         params.update({f"p{i}": pid for i, pid in enumerate(post_ids)})
@@ -91,8 +93,10 @@ def query_posts(db, cfg, user_id, *, decisions=None, statuses_=None, groups=None
     else:
         cards.sort(key=lambda c: (c["posted_at"] or c["first_seen_at"] or "", c["post_id"]), reverse=True)
     page = cards[offset:offset + limit]
+    has_prices = bool(db.execute("SELECT 1 FROM sqlite_master WHERE name = 'listing_posts'").fetchone())
     for c in page:   # only for the cards actually returned
         c["photos"] = photos(db, c["post_id"])
+        c["price_history"] = prices.history(db, c["post_id"]) if has_prices else []
     return {"total": len(cards), "items": page}
 
 
@@ -128,6 +132,7 @@ def _card(r, facts, contact, names, template):
             "status": r["status"], "note": r["status_note"], "source": r["status_source"],
             "updated_at": r["status_updated_at"]},
         "notes_count": r["notes_count"],
+        "edited": r["edits"] > 0,
     }
 
 
