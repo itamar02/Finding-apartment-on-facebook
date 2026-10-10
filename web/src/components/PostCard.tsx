@@ -25,8 +25,17 @@ export function ContactButton({ card }: { card: Card }) {
   const a = card.action;
   if (a.kind === "none" || !a.url) return null;
   return (
-    <button className={"btn " + (a.kind === "whatsapp" ? "whatsapp" : "")} onClick={() => contact(card.post_id, a.url!, card.status)}>
-      {a.kind === "whatsapp" ? "WhatsApp" : "פרופיל פייסבוק"}
+    <button
+      className={"btn " + (a.kind === "whatsapp" ? "whatsapp" : "")}
+      title={a.guessed ? `המספר בפוסט (${a.typed}) לא תקין. מנחשים: ${a.guess}` : undefined}
+      onClick={() => {
+        if (a.guessed && !confirm(`המספר בפוסט נכתב ${a.typed}, וזה לא מספר תקין.
+הניחוש: ${a.guess}.
+לפתוח וואטסאפ למספר הזה?`)) return;
+        contact(card.post_id, a.url!, card.status);
+      }}
+    >
+      {a.kind === "whatsapp" ? (a.guessed ? "WhatsApp (ניחוש)" : "WhatsApp") : "פרופיל פייסבוק"}
     </button>
   );
 }

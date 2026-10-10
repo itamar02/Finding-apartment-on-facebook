@@ -34,3 +34,17 @@ def test_whatsapp_link_wins_and_landline_skipped():
 
 def test_no_contact_at_all():
     assert outreach.contact_action(_contact("nothing", author_id=None), "hi")["kind"] == "none"
+
+
+def test_mistyped_number_gets_a_marked_guess():
+    c = _contact("לפרטים: אלברט – 095-4563-4144")
+    assert c["phones"] == [] and c["suspect"] == [{"raw": "095-4563-4144", "guess": "054-5634144"}]
+    a = outreach.contact_action(c, "שלום")
+    assert a["kind"] == "whatsapp" and a["guessed"] and a["number"] == "972545634144"
+    assert a["typed"] == "095-4563-4144" and a["url"].startswith("https://wa.me/972545634144?text=")
+
+
+def test_no_guess_when_the_fix_is_ambiguous_or_there_is_none():
+    assert _contact("טלפון 05-123456")["suspect"] == []                       # 8 digits: not a typo of one digit
+    assert outreach.contact_action(_contact("טלפון 05-123456"), "x")["kind"] == "facebook"
+    assert "guessed" not in outreach.contact_action(_contact("טלפון 054-563-4144"), "x")   # a valid number is not a guess

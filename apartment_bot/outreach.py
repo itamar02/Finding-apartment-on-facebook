@@ -57,6 +57,12 @@ def contact_action(contact, message):
     if number:
         return {"kind": "whatsapp", "url": f"https://wa.me/{number}?text={urllib.parse.quote(message)}",
                 "number": number}
+    for s in contact.get("suspect") or []:   # a mistyped number with one obvious fix: offered as a guess
+        guess = (s["guess"] or "").replace("-", "")
+        if guess.startswith("05"):
+            number = "972" + guess[1:]
+            return {"kind": "whatsapp", "url": f"https://wa.me/{number}?text={urllib.parse.quote(message)}",
+                    "number": number, "guessed": True, "typed": s["raw"], "guess": s["guess"]}
     if contact["facebook_profile"]:
         return {"kind": "facebook", "url": contact["facebook_profile"]}
     return {"kind": "none", "url": None}

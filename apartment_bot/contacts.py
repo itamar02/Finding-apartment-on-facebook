@@ -30,6 +30,23 @@ def phones_in_text(text):
     return found
 
 
+def suspect_phones(text):
+    """Number-like runs that are not valid Israeli numbers, each with a guess at what was meant.
+
+    {"raw": "095-4563-4144", "guess": "054-563-4144" | None}. A guess exists only when deleting
+    one single digit gives exactly one valid number (a typo like a stray extra digit); the app
+    then offers WhatsApp for it, clearly marked as a guess, and never sends anything itself.
+    """
+    out = []
+    for m in _PHONE_RUN.finditer(text or ""):
+        digits = re.sub(r"\D", "", m.group(0))
+        if _normalize(digits) or len(digits) not in (9, 11, 12):
+            continue
+        fixes = {_normalize(digits[:i] + digits[i + 1:]) for i in range(len(digits))} - {None}
+        out.append({"raw": m.group(0).strip(), "guess": next(iter(fixes)) if len(fixes) == 1 else None})
+    return out
+
+
 def whatsapp_links(text):
     """Distinct WhatsApp links in the text, as https://wa.me/972... URLs."""
     out = []
@@ -53,6 +70,7 @@ def contact_info(post):
         "facebook_profile": profile_url(post["author_id"]),
         "phones": phones_in_text(post["text"]),
         "whatsapp": whatsapp_links(post["text"]),
+        "suspect": suspect_phones(post["text"]),
     }
     if info["phones"]:
         info["best"] = f"phone {info['phones'][0]}"

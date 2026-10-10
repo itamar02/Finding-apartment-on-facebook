@@ -58,7 +58,14 @@ export interface Card {
   group_name: string;
   author: string | null;
   contact: Contact;
-  action: { kind: "whatsapp" | "facebook" | "none"; url: string | null; number?: string };
+  action: {
+    kind: "whatsapp" | "facebook" | "none";
+    url: string | null;
+    number?: string;
+    guessed?: boolean;
+    typed?: string;
+    guess?: string;
+  };
   ai: { decision: Decision; reason: string | null; rule: string | null; decided_by: string | null } | null;
   facts: Facts | null;
   partial_facts: boolean;
