@@ -99,11 +99,11 @@ export default function PostCard({ card }: { card: Card }) {
           </button>
           <button
             className={"btn vote" + (disliked ? " on-bad" : "")}
-            aria-label="לא מתאים לי"
-            title="לא רלוונטי (הקשה נוספת מבטלת)"
+            aria-label="לא רלוונטי, להסיר מהרשימה"
+            title="לא רלוונטי: מסיר מהרשימה (אפשר לבטל)"
             onClick={() => change(card.post_id, disliked ? null : "not_relevant")}
           >
-            👎
+            🗑️
           </button>
           <ContactButton card={card} />
           <a className="btn" href={card.url} target="_blank" rel="noopener noreferrer">

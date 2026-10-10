@@ -326,7 +326,7 @@ it). `tailscale serve --bg` survives restarts by itself.
   a history. *Not relevant* is the same as `reject.py`: setting either one sets both.
 - **Overruling the AI**: the AI's verdict (passed / needs review / rejected) is never changed
   - it stays on the card, dimmed as "AI: ..." once you have decided. Your decision is your
-  own status: 👍 on a card sets *Interested*, 👎 sets *Not relevant* (tap again to undo; the
+  own status: 👍 on a card sets *Interested*, 🗑️ sets *Not relevant* and removes the listing from the list at once (Undo in the message that appears; the
   status picker has the rest). Listings marked *Not relevant* or *Taken* are hidden from the
   feed unless you tick "show those too" in the filter, so to rescue something the AI rejected,
   filter on *Rejected* and tap 👍. Your decisions also feed the suggestions (see below).

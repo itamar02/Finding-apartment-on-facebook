@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, Card, Decision, Filters } from "../api";
 import { DEFAULT_FILTERS, useApp } from "../App";
 import { DECISION_LABEL, SOURCE_LABEL } from "../format";
@@ -36,12 +36,25 @@ export default function Feed({ filters, setFilters }: { filters: Filters; setFil
     load(0);
   }, [load]);
 
+  // A listing marked not relevant / taken leaves the list at once (Undo brings it back);
+  // unless the filter says to show those too.
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const hideClosed = !filters.show_closed && filters.status.length === 0;
   useEffect(
     () =>
-      app.onStatusChange((postId, status) =>
-        setItems((prev) => prev.map((c) => (c.post_id === postId ? { ...c, status } : c)))
-      ),
-    [app]
+      app.onStatusChange((postId, status) => {
+        const closed = status?.status === "not_relevant" || status?.status === "taken";
+        if (hideClosed && closed) {
+          setItems((prev) => prev.filter((c) => c.post_id !== postId));
+          setTotal((t) => Math.max(0, t - 1));
+        } else if (!itemsRef.current.some((c) => c.post_id === postId)) {
+          load(0); // an undone removal: fetch the list again so the card returns in its place
+        } else {
+          setItems((prev) => prev.map((c) => (c.post_id === postId ? { ...c, status } : c)));
+        }
+      }),
+    [app, hideClosed, load]
   );
 
   const active = countActive(filters);
