@@ -240,29 +240,31 @@ cloud.
 
 ### One-time setup
 
-1. **Packages**: `pip install -r requirements.txt` (adds FastAPI and uvicorn), and
-   [Node.js](https://nodejs.org) 20 or newer to build the app once:
-   ```
-   cd web
-   npm install
-   npm run build
-   cd ..
-   ```
-   Run `npm run build` again after pulling app changes.
+Short version (Windows 11, Python 3.11+, Node.js 20+):
+
+```
+python setup_app.py        # packages + builds the web app + checks Tailscale
+```
+
+then the four commands it prints. In detail:
+
+1. **Packages and the web app**: `python setup_app.py` (does `pip install -r requirements.txt`
+   and `npm ci && npm run build` in `web/`, and copies `config.example.yaml` to `config.yaml`
+   if you have none - edit it, see *Configuration*). Run it again after pulling app changes.
 2. **Tailscale** (private network between your PC and phone, with HTTPS - needed to install
-   the app and, later, for notifications): install Tailscale on the PC and on the phone and
-   log in to the same account on both. In the Tailscale admin console, under DNS, turn on
-   **MagicDNS** and **HTTPS certificates**. Then, on the PC, once:
+   the app and for notifications): install Tailscale on the PC (`winget install
+   Tailscale.Tailscale`) and on the phone and log in to the same account on both. In the
+   Tailscale admin console, under DNS, turn on **MagicDNS** and **HTTPS certificates**. Then,
+   on the PC, once:
    ```
+   tailscale up
    tailscale serve --bg 8787
    ```
-   It prints the app's address, like `https://my-pc.tail1234.ts.net`. This address only works
-   on your own devices; the server itself listens only on the PC (`127.0.0.1`).
-3. **Start the server**:
-   ```
-   python app_server.py
-   ```
-   The first start upgrades the database (with a backup, as always).
+   `serve` prints the app's address, like `https://my-pc.tail1234.ts.net`. It only works on
+   your own devices; the server itself listens only on the PC (`127.0.0.1`).
+3. **Start the server**: `python app_server.py` (or double-click `run_app.cmd`). The first
+   start upgrades the database (with a backup, as always). On a brand new install with no
+   database yet this just creates an empty one; run `python scan_facebook.py` to fill it.
 4. **Log in from the phone**: open the address from step 2 on the phone. On the PC run
    ```
    python app_server.py --pair
@@ -274,9 +276,12 @@ cloud.
 
 ### Start it automatically with Windows
 
-Task Scheduler > *Create Task*: trigger *At log on*; action *Start a program* with program
-`pythonw.exe` (or the full path to it), arguments `app_server.py`, and *Start in* set to this
-folder. `tailscale serve --bg` already survives restarts.
+```
+powershell -ExecutionPolicy Bypass -File register_autostart.ps1
+```
+
+creates a Task Scheduler task that starts `app_server.py` when you log in (`-Remove` deletes
+it). `tailscale serve --bg` survives restarts by itself.
 
 ### What's in it
 
@@ -555,6 +560,8 @@ fb_harness_scan.py      browser script executed inside browser-harness (not plai
 analyze_posts.py        AI analysis entry point
 export_results.py       write all stored results to a text or JSON report
 app_server.py           the phone app's server (API + built web app)
+setup_app.py            one-command setup of the phone app (packages, web build, checks)
+run_app.cmd             start the server by double-click; register_autostart.ps1 starts it at login
 discover_groups.py      find groups (yours + search results); fb_harness_discover.py runs in the browser
 why.py                  explain a stored decision
 reject.py               reject (or un-reject) listings by hand - the "human rejected" pile
