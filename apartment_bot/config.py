@@ -80,6 +80,19 @@ def _validate_api_key_setting(cfg):
             raise ConfigError(f"app.api_key.{key} must be text")
 
 
+def _windows_user_env(name):
+    """A user environment variable as Windows has it stored. A program started before the
+    variable was set (or from a tool that doesn't refresh it) doesn't see it in os.environ."""
+    if os.name != "nt":
+        return ""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as k:
+            return str(winreg.QueryValueEx(k, name)[0]).strip()
+    except OSError:
+        return ""
+
+
 def get_api_key(cfg):
     """The Anthropic API key, from the environment variable or from config.yaml.
 
@@ -98,7 +111,7 @@ def get_api_key(cfg):
                               "put your key there, or switch source to 'env'")
         return key
     var = setting.get("env_var") or "ANTHROPIC_API_KEY"
-    key = os.environ.get(var, "").strip()
+    key = os.environ.get(var, "").strip() or _windows_user_env(var)
     if not key:
         raise ConfigError(f"the environment variable {var} is not set (app.api_key.source is 'env'). "
                           f"Set it, or switch to source: config and put the key in config.yaml")

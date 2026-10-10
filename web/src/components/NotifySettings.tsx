@@ -267,7 +267,7 @@ export default function NotifySettings() {
           disabled={state?.running}
           onClick={async () => {
             try {
-              await api.runScheduler();
+              await api.runScheduler("download");
               app.toast({ text: "סריקה התחילה" });
               window.setTimeout(refresh, 3000);
             } catch (e) {
@@ -275,7 +275,7 @@ export default function NotifySettings() {
             }
           }}
         >
-          סרוק עכשיו
+          הורד מודעות עכשיו
         </button>
       </div>
     </>

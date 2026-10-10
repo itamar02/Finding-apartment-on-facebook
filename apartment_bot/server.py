@@ -18,7 +18,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-from . import (auth, config_edit, db as dbmod, feed, followups, gcal, gpt_io, groups as groups_mod, learning,
+from . import (auth, config_edit, pipeline, db as dbmod, feed, followups, gcal, gpt_io, groups as groups_mod, learning,
                meetings, notify, prices, providers, settings, statuses, visits)
 from .config import ConfigError, get_api_key
 from .ratelimit import RateLimiter
@@ -66,6 +66,10 @@ class NewGroupIn(BaseModel):
 
 class DiscoverIn(BaseModel):
     score: bool = False
+
+
+class JobIn(BaseModel):
+    job: str = "all"
 
 
 class SnoozeIn(BaseModel):
@@ -408,14 +412,23 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
 
     @app.get("/api/scheduler")
     def scheduler_state(db=Depends(get_db)):
-        return {**scheduler.state, "settings": settings.get(db, "scheduler")}
+        return {**scheduler.state, "settings": settings.get(db, "scheduler"),
+                "unchecked": pipeline.count_pending(db, uid)}
 
     @app.post("/api/scheduler/run")
-    def scheduler_run():
-        if scheduler.state["running"]:
+    def scheduler_run(body: JobIn = JobIn()):
+        """job: download (Facebook only, no AI) | analyze (the AI, up to the limit) | all."""
+        try:
+            started = scheduler.start_job(body.job)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        if not started:
             raise HTTPException(409, "already running")
-        scheduler.run_now()
         return {"ok": True}
+
+    @app.post("/api/scheduler/stop")
+    def scheduler_stop():
+        return {"stopped": scheduler.stop_job()}
 
     # --- notifications ----------------------------------------------------------------------
 

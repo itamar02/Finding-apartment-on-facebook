@@ -37,6 +37,20 @@ def pending_posts(db, user_id, limit=None, post_ids=None, force=False):
     return db.execute(sql, params).fetchall()
 
 
+def count_pending(db, user_id):
+    """How many posts still wait for the AI (same rule as pending_posts), without loading them."""
+    edited = _has_versions(db)
+    newer = (" AND a.analyzed_at >= coalesce((SELECT max(v.seen_at) FROM post_versions v"
+             " WHERE v.post_id = p.post_id), '')") if edited else ""
+    return db.execute(
+        "SELECT count(*) FROM posts p WHERE coalesce(p.text, '') != ''"
+        " AND NOT EXISTS (SELECT 1 FROM human_decisions h WHERE h.post_id = p.post_id AND h.user_id = ?"
+        " AND h.decision = 'REJECT')"
+        " AND NOT EXISTS (SELECT 1 FROM post_analyses a WHERE a.post_id = p.post_id AND a.user_id = ?"
+        " AND a.pipeline_version = ? AND a.status = 'ok'" + newer + ")",
+        (user_id, user_id, ai_filter.PIPELINE_VERSION)).fetchone()[0]
+
+
 def _has_versions(db):
     return bool(db.execute("SELECT 1 FROM sqlite_master WHERE name = 'post_versions'").fetchone())
 

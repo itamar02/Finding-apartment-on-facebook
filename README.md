@@ -347,6 +347,11 @@ it). `tailscale serve --bg` survives restarts by itself.
 
 In **Settings**:
 
+- **Jobs on the feed**: three buttons at the top, each asked for on purpose: **⬇ Download posts**
+  (reads the Facebook groups only - no AI, no cost), **🧠 Analyze posts** (the AI on the posts not
+  checked yet, newest first, at most the limit set below; it shows the number and an estimated
+  price and asks to confirm first) and **🔄 All** (both). While one runs, **⏹ Stop** ends it
+  immediately - what was already saved stays. Only one runs at a time.
 - **Automatic scanning**: the server runs `scan_facebook.py`, then `analyze_posts.py --all`,
   then sends notifications, every N minutes (default 30), except during its quiet hours. It
   is off until you turn it on; *Scan now* runs it once. This replaces the watchdog - don't

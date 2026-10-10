@@ -1004,3 +1004,13 @@ blockquote {
   background: var(--reject);
   border-color: var(--reject);
 }
+
+.btn.danger {
+  background: var(--reject);
+  border-color: var(--reject);
+  color: #fff;
+}
+
+.grow-line {
+  flex-basis: 100%;
+}
