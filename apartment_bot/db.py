@@ -148,6 +148,32 @@ MIGRATIONS = [
         SELECT post_id, user_id, 'not_relevant', note, 'human', decided_at
         FROM human_decisions WHERE decision = 'REJECT';
     """,
+    # 4 -> 5: Facebook groups move from config.yaml into the database (config.yaml's list
+    # seeds it once, see groups.py), plus a log of statuses imported from an external AI.
+    """
+    CREATE TABLE fb_groups (
+        id              TEXT PRIMARY KEY,      -- number or name from facebook.com/groups/<id>/
+        name            TEXT,
+        url             TEXT,
+        member_count    INTEGER,
+        privacy         TEXT,                  -- public | private | NULL (unknown)
+        is_member       INTEGER,               -- 1 / 0 / NULL (unknown)
+        description     TEXT,
+        relevance_score REAL,                  -- 0-10 from the optional AI rating
+        relevance_reason TEXT,
+        selected        INTEGER NOT NULL DEFAULT 0,  -- scanned by scan_facebook.py
+        source          TEXT NOT NULL,         -- config | my_groups | search | manual
+        search_query    TEXT,                  -- the search that found it
+        discovered_at   TEXT NOT NULL,
+        updated_at      TEXT NOT NULL
+    );
+    CREATE TABLE gpt_imports (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT NOT NULL,
+        items_json TEXT NOT NULL,              -- what was applied: [{post_id, status, note, previous}]
+        applied    INTEGER NOT NULL
+    );
+    """,
 ]
 
 

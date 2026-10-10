@@ -6,7 +6,7 @@ the same "latest successful analysis per post and user" rule as report.py.
 import json
 from datetime import datetime, timedelta
 
-from . import outreach, settings, statuses
+from . import groups as groups_mod, outreach, settings, statuses
 from .contacts import contact_info
 
 DECISIONS = ("PASS", "NEEDS_REVIEW", "REJECT", "PENDING")   # PENDING: not analyzed yet
@@ -29,8 +29,8 @@ WHERE coalesce(p.text, '') != ''
 """
 
 
-def group_names(cfg):
-    return {g["id"]: g.get("name") or g["id"] for g in cfg["facebook"]["groups"]}
+def group_names(db, cfg):
+    return groups_mod.names(db, cfg)
 
 
 def query_posts(db, cfg, user_id, *, decisions=None, statuses_=None, groups=None, price_min=None,
@@ -60,7 +60,7 @@ def query_posts(db, cfg, user_id, *, decisions=None, statuses_=None, groups=None
         params.update({f"g{i}": g for i, g in enumerate(groups)})
     rows = db.execute(sql, params).fetchall()
 
-    names = group_names(cfg)
+    names = group_names(db, cfg)
     template = settings.get(db, "whatsapp_template")
     cards = []
     for r in rows:

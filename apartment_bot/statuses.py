@@ -4,9 +4,12 @@ The AI verdict is always derived from `post_analyses` and never copied here. Thi
 owns `post_status` (the current status), `post_status_history` (append-only) and the
 editable `statuses` list.
 
-"not_relevant" is the same thing as a hand rejection (reject.py): setting it also writes
-`human_decisions`, and leaving it removes that row, so the CLI scripts, the exports and the
-AI's skip list always agree with the app.
+"not_relevant" set by me is the same thing as a hand rejection (reject.py): setting it also
+writes `human_decisions`, and leaving it removes that row, so the CLI scripts, the exports and
+the AI's skip list always agree with the app. A "not relevant" suggested by an external AI
+(source gpt) stays a status only - it is not a rejection by me.
+
+Giving a post a status (by me or through an import) also marks it as seen.
 """
 from datetime import datetime
 
@@ -76,7 +79,10 @@ def set_status(db, user_id, post_id, status, note=None, source="human"):
     when = now_iso()
     with db:
         old = record(db, user_id, post_id, status, note, source, when)
-        _sync_human(db, user_id, post_id, old and old["status"], status, note, when)
+        _sync_human(db, user_id, post_id, old and old["status"], status, note, source, when)
+        db.execute("INSERT INTO post_seen (post_id, user_id, first_seen_at, last_seen_at) VALUES (?,?,?,?)"
+                   " ON CONFLICT(post_id, user_id) DO UPDATE SET last_seen_at = excluded.last_seen_at",
+                   (post_id, user_id, when, when))
     return old, current(db, user_id, post_id)
 
 
@@ -89,12 +95,12 @@ def undo(db, user_id, post_id):
     return set_status(db, user_id, post_id, last["previous_status"], last["previous_note"], "human")[1]
 
 
-def _sync_human(db, user_id, post_id, old_status, new_status, note, when):
-    """not_relevant <-> human_decisions REJECT."""
-    if new_status == NOT_RELEVANT:
+def _sync_human(db, user_id, post_id, old_status, new_status, note, source, when):
+    """not_relevant (set by me) <-> human_decisions REJECT."""
+    if new_status == NOT_RELEVANT and source == "human":
         db.execute("INSERT OR REPLACE INTO human_decisions (post_id, user_id, decision, note, decided_at)"
                    " VALUES (?, ?, 'REJECT', ?, ?)", (post_id, user_id, note, when))
-    elif old_status == NOT_RELEVANT:
+    elif old_status == NOT_RELEVANT and new_status != NOT_RELEVANT:
         db.execute("DELETE FROM human_decisions WHERE post_id = ? AND user_id = ?", (post_id, user_id))
 
 

@@ -125,9 +125,11 @@ def load_config(path=DEFAULT_CONFIG_PATH):
     bad = set(_require(cfg, "pictures.save_for", list)) - {"PASS", "NEEDS_REVIEW", "REJECT"}
     if bad:
         raise ConfigError(f"pictures.save_for has unknown decisions: {sorted(bad)}")
+    # The groups to scan now live in the database (groups.py); this list only seeds it once,
+    # so it may be empty.
     groups = _require(cfg, "facebook.groups", list)
-    if not groups or not all(isinstance(g, dict) and isinstance(g.get("id"), str) and g["id"] for g in groups):
-        raise ConfigError("facebook.groups must be a non-empty list of {id: \"...\", name: \"...\"}")
+    if not all(isinstance(g, dict) and isinstance(g.get("id"), str) and g["id"] for g in groups):
+        raise ConfigError("facebook.groups must be a list of {id: \"...\", name: \"...\"}")
     if len({g["id"] for g in groups}) != len(groups):
         raise ConfigError("facebook.groups contains the same group id twice")
     ids = [u.get("id") for u in cfg["users"]]

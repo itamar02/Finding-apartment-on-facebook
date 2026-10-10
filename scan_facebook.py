@@ -3,9 +3,10 @@
 Usage:
     python scan_facebook.py [--group ID ...] [--max-posts N] [--stop-after-known N] [--max-age-days N]
 
-Attaches to the local logged-in Chrome via browser-harness and, for each group in
-config.yaml (facebook.groups), reads the feed sorted by "New posts" and inserts posts
-whose Facebook post ID is not yet in the database. Post bodies are never printed.
+Attaches to the local logged-in Chrome via browser-harness and, for each selected group
+(the fb_groups table, chosen in the phone app; seeded once from config.yaml facebook.groups),
+reads the feed sorted by "New posts" and inserts posts whose Facebook post ID is not yet in
+the database. Post bodies are never printed.
 """
 import argparse
 import json
@@ -18,6 +19,7 @@ import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from apartment_bot import db as dbmod, groups as groups_mod
 from apartment_bot.config import ConfigError, load_config, max_post_age_days
 from apartment_bot.db import POST_IMAGES_DDL
 import bot_chrome
@@ -159,6 +161,28 @@ def acquire_lock():
     os.close(fd)
 
 
+def selected_groups(cfg, wanted=None):
+    """Group ids to scan: the selected ones in fb_groups, or exactly `wanted` (any known group)."""
+    db = sqlite3.connect(DB_PATH)
+    db.executescript(SCHEMA)
+    db.close()
+    db, _ = dbmod.migrate(DB_PATH)
+    try:
+        groups_mod.seed_from_config(db, cfg)
+        if wanted:
+            known = {g["id"] for g in groups_mod.list_groups(db)}
+            unknown = set(wanted) - known
+            if unknown:
+                sys.exit(f"unknown groups (add them in the app first): {', '.join(sorted(unknown))}")
+            return [g for g in wanted]
+        selected = groups_mod.selected_ids(db)
+    finally:
+        db.close()
+    if not selected:
+        sys.exit("No groups are selected for scanning. Tick some in the app's Groups screen.")
+    return selected
+
+
 def _pid_alive(pid):
     out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"], capture_output=True, text=True).stdout
     return str(pid) in out
@@ -167,7 +191,7 @@ def _pid_alive(pid):
 def main():
     """Scan each configured group, insert unseen posts, print progress and a summary."""
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--group", action="append", help="only scan these group ids (repeatable)")
+    ap.add_argument("--group", action="append", help="only scan these group ids (repeatable; selected or not)")
     ap.add_argument("--max-posts", type=int, default=300,
                     help="safety cap on posts read per group per run (default 300); normally a "
                          "group stops at posts older than the age limit first")
@@ -184,12 +208,7 @@ def main():
         cfg = load_config()
     except ConfigError as e:
         sys.exit(f"config error: {e}")
-    groups = [g["id"] for g in cfg["facebook"]["groups"]]
-    if args.group:
-        unknown = set(args.group) - set(groups)
-        if unknown:
-            sys.exit(f"not in config.yaml facebook.groups: {', '.join(sorted(unknown))}")
-        groups = [g for g in groups if g in args.group]
+    groups = selected_groups(cfg, args.group)
     max_age = args.max_age_days if args.max_age_days is not None else max_post_age_days(cfg)
     cutoff = (datetime.now().astimezone() - timedelta(days=max_age)).isoformat(timespec="minutes")
 

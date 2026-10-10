@@ -5,7 +5,10 @@ Changes also need the header "X-ApartmentBot: 1", which a page from another site
 send without the browser asking first, so a link elsewhere can't change anything here.
 """
 import asyncio
+import os
 import secrets
+import subprocess
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -13,7 +16,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-from . import auth, db as dbmod, feed, settings, statuses
+from . import auth, db as dbmod, feed, gpt_io, groups as groups_mod, settings, statuses
 from .config import get_user
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
@@ -44,6 +47,24 @@ class StatusDefIn(BaseModel):
 
 class OrderIn(BaseModel):
     keys: list[str]
+
+
+class GroupIn(BaseModel):
+    selected: bool
+
+
+class NewGroupIn(BaseModel):
+    url: str
+    name: Optional[str] = None
+
+
+class DiscoverIn(BaseModel):
+    score: bool = False
+
+
+class ReplyIn(BaseModel):
+    text: str
+    override_human: bool = False
 
 
 def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secure_cookie=True):
@@ -93,7 +114,7 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
         return {
             "user_id": uid,
             "statuses": statuses.list_statuses(db),
-            "groups": [{"id": k, "name": v} for k, v in feed.group_names(cfg).items()],
+            "groups": [{"id": k, "name": v} for k, v in feed.group_names(db, cfg).items()],
             "decisions": list(feed.DECISIONS),
             "settings": settings.get_all(db),
             "recent_days": settings.recent_days(db, cfg),
@@ -241,6 +262,68 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
         except statuses.StatusError as e:
             raise HTTPException(400, str(e))
         return statuses.list_statuses(db)
+
+    # --- Facebook groups ------------------------------------------------------------------------
+
+    discovery = {"proc": None}
+    discover_log = PROJECT_DIR / "discover_groups.log"
+
+    @app.get("/api/groups")
+    def list_groups(db=Depends(get_db)):
+        return {"groups": groups_mod.list_groups(db), "queries": settings.group_queries(db, user)}
+
+    @app.put("/api/groups/{gid}")
+    def select_group(gid: str, body: GroupIn, db=Depends(get_db)):
+        if not groups_mod.set_selected(db, gid, body.selected):
+            raise HTTPException(404, "unknown group")
+        return {"ok": True}
+
+    @app.post("/api/groups")
+    def add_group(body: NewGroupIn, db=Depends(get_db)):
+        try:
+            gid = groups_mod.add_manual(db, body.url, body.name)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        return {"id": gid}
+
+    @app.post("/api/groups/discover")
+    def start_discovery(body: DiscoverIn):
+        """Run discover_groups.py in the background (it takes the scan lock itself)."""
+        proc = discovery["proc"]
+        if proc and proc.poll() is None:
+            raise HTTPException(409, "already running")
+        args = [sys.executable, str(PROJECT_DIR / "discover_groups.py"), "--user", uid]
+        if body.score:
+            args.append("--score")
+        log = open(discover_log, "w", encoding="utf-8")
+        discovery["proc"] = subprocess.Popen(args, cwd=PROJECT_DIR, stdout=log, stderr=subprocess.STDOUT,
+                                             env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+        return {"running": True}
+
+    @app.get("/api/groups/discover")
+    def discovery_status():
+        proc = discovery["proc"]
+        running = bool(proc and proc.poll() is None)
+        try:
+            lines = discover_log.read_text(encoding="utf-8").strip().splitlines()[-5:]
+        except OSError:
+            lines = []
+        return {"running": running, "exit_code": None if running or not proc else proc.returncode, "log": lines}
+
+    # --- external AI (GPT) export / import -----------------------------------------------------
+
+    @app.get("/api/gpt/export")
+    def gpt_export(include_old: bool = False, db=Depends(get_db)):
+        payload = gpt_io.export(db, cfg, user, include_old=include_old)
+        return {**payload, "text": gpt_io.as_text(payload)}
+
+    @app.post("/api/gpt/preview")
+    def gpt_preview(body: ReplyIn, db=Depends(get_db)):
+        return gpt_io.preview(db, uid, body.text)
+
+    @app.post("/api/gpt/apply")
+    def gpt_apply(body: ReplyIn, db=Depends(get_db)):
+        return gpt_io.apply(db, uid, body.text, override_human=body.override_human)
 
     # --- the web app ----------------------------------------------------------------------------
 

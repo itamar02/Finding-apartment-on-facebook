@@ -8,7 +8,7 @@ using each post's latest successful analysis for the user.
 import json
 from datetime import datetime
 
-from . import human as human_mod
+from . import groups as groups_mod, human as human_mod
 from .contacts import contact_info
 from .display import facts_lines, keep_text
 
@@ -24,7 +24,7 @@ def build_entries(db, cfg, user_id, post_ids=None):
     Listings the human rejected by hand (reject.py) get the decision HUMAN_REJECTED, which
     wins over the automatic one - even for posts that were never analyzed.
     """
-    group_names = {g["id"]: g.get("name") for g in cfg["facebook"]["groups"]}
+    group_names = groups_mod.names(db, cfg) if _has_table(db, "fb_groups") else         {g["id"]: g.get("name") for g in cfg["facebook"]["groups"]}
     human = human_mod.rejected(db, user_id)
     sql = ("SELECT a.*, p.group_id, p.author, p.author_id, p.posted_at, p.text, p.url"
            " FROM post_analyses a JOIN posts p ON p.post_id = a.post_id"
@@ -46,6 +46,10 @@ def build_entries(db, cfg, user_id, post_ids=None):
     entries = [_entry(db, group_names, r, human) for r in rows]
     entries.sort(key=lambda e: (e["posted_at"] or "", e["post_id"]), reverse=True)
     return entries
+
+
+def _has_table(db, name):
+    return bool(db.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)).fetchone())
 
 
 def _entry(db, group_names, r, human):

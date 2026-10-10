@@ -5,8 +5,9 @@ import Feed from "./components/Feed";
 import Board from "./components/Board";
 import Detail from "./components/Detail";
 import SettingsView from "./components/SettingsView";
+import Groups from "./components/Groups";
 
-type View = "feed" | "board" | "settings";
+type View = "feed" | "board" | "groups" | "settings";
 
 interface Toast {
   text: string;
@@ -131,6 +132,9 @@ export default function App() {
             <button className={view === "board" ? "on" : ""} onClick={() => setView("board")}>
               לוח
             </button>
+            <button className={view === "groups" ? "on" : ""} onClick={() => setView("groups")}>
+              קבוצות
+            </button>
             <button className={view === "settings" ? "on" : ""} onClick={() => setView("settings")} aria-label="הגדרות">
               ⚙
             </button>
@@ -139,6 +143,7 @@ export default function App() {
         <main>
           {view === "feed" && <Feed filters={filters} setFilters={setFilters} />}
           {view === "board" && <Board />}
+          {view === "groups" && <Groups />}
           {view === "settings" && <SettingsView onLogout={() => setPaired(false)} />}
         </main>
         {openId && <Detail postId={openId} onClose={() => setOpenId(null)} />}

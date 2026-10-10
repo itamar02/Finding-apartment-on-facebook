@@ -14,6 +14,9 @@ DEFAULTS = {
     # Posts older than this are hidden in the feed and left out of exports unless asked for.
     # None means: use the largest listing.max_post_age_days in config.yaml.
     "recent_days": None,
+    # Searches used by discover_groups.py. None means: "דירות להשכרה <city>" and
+    # "שותפים <city>" for every city in listing.search_cities.
+    "group_search_queries": None,
 }
 
 
@@ -48,3 +51,12 @@ def recent_days(db, cfg):
     from .config import max_post_age_days
     stored = get(db, "recent_days")
     return stored if stored else max_post_age_days(cfg)
+
+
+def group_queries(db, user):
+    """The group searches to run (stored list, or two per search city)."""
+    stored = get(db, "group_search_queries")
+    if stored:
+        return [q for q in stored if q.strip()]
+    cities = user["listing"]["search_cities"]
+    return [f"דירות להשכרה {c}" for c in cities] + [f"שותפים {c}" for c in cities]

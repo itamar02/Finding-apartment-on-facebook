@@ -11,7 +11,7 @@ your own devices. See the README, "Phone app".
 import argparse
 import sys
 
-from apartment_bot import auth, db as dbmod
+from apartment_bot import auth, db as dbmod, groups
 from apartment_bot.config import ConfigError, get_user, load_config
 
 
@@ -43,6 +43,7 @@ def main():
     except ConfigError as e:
         sys.exit(f"config error: {e}")
     db, backups = dbmod.migrate()
+    groups.seed_from_config(db, cfg)
     db.close()
     for b in backups:
         print(f"Database upgraded; backup saved as {b}")

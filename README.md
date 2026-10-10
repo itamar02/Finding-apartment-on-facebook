@@ -90,7 +90,7 @@ parks its window off-screen. Settings: `browser` in `config.yaml` (`chrome_path`
 ### 1. Scan the Facebook groups (no AI, no cost)
 
 ```
-python scan_facebook.py                          # all groups in config.yaml
+python scan_facebook.py                          # all groups selected in the app
 python scan_facebook.py --group 123456789012345  # only some groups (repeatable)
 python scan_facebook.py --max-age-days 3         # only the last 3 days this time
 python scan_facebook.py --full                   # re-read every group back to the age limit
@@ -179,6 +179,20 @@ everything stored so far.
 
 `analyze_posts.py --report FILE` writes the same format, but only for the posts analyzed
 in that run.
+
+### Find Facebook groups
+
+```
+python discover_groups.py                        # your groups + the searches set in the app
+python discover_groups.py --query "שותפים חיפה"   # only this search (repeatable)
+python discover_groups.py --score                # also rate each group 0-10 with the AI (cheap)
+```
+
+Reads, in the bot Chrome, the list of groups you are in and Facebook's group search results
+(name, members, public/private, whether you're a member). Read-only, at a human pace, and
+never at the same time as a scan (same lock). New groups are added unselected; pick them in
+the app. The default searches are "דירות להשכרה <city>" and "שותפים <city>" for each
+`listing.search_cities` entry; edit them in the app's Groups screen.
 
 ### Reject a listing by hand
 
@@ -280,6 +294,17 @@ folder. `tailscale serve --bg` already survives restarts.
   ones ask for a note such as *Needs details*) is editable in Settings. Every change is kept in
   a history. *Not relevant* is the same as `reject.py`: setting either one sets both.
 - **Board**: columns by status. **Notes**: free text on any listing.
+- **Groups**: tick the Facebook groups to scan. The list lives in the database now;
+  `facebook.groups` in `config.yaml` only fills it the first time. *Find groups* runs
+  `discover_groups.py` on the PC (see below). Groups you are not a member of show a link to
+  join on Facebook; joining stays manual.
+- **Sorting with ChatGPT or another chat AI** (Settings): *Export* gives the listings without
+  a status set by you (text, facts, AI verdict, contacts) plus a ready prompt; paste it into
+  the chat, paste the answer back, check the preview, and confirm. Imported statuses are
+  marked GPT (the feed can filter by who set a status) and never replace a status you set
+  yourself unless you tick that box. A GPT "not relevant" is not a rejection by you, so
+  `reject.py --list` and the exports' HUMAN REJECTED section only show your own. The export
+  holds other people's phone numbers - keep that in mind before pasting it into a service.
 
 ### Developing the app
 
@@ -385,6 +410,8 @@ key gives a plain message saying which variable or setting to fix.
 | `scan_runs` | `scan_facebook.py` | One row per group per scan: counts, stop reason, sort label seen, error |
 | `post_images` | `scan_facebook.py`, `apartment_bot/pictures.py` | Photo links per post (`post_id`, `idx`, `url`, `alt`, `more_hidden`) and, once downloaded, `local_path` / `downloaded_at` / `download_error` |
 | `human_decisions` | `reject.py` | Listings you rejected by hand: `post_id`, `user_id`, `decision`, `note`, `decided_at` |
+| `fb_groups` | the app, `discover_groups.py` | The groups to scan (`selected`) and groups found: name, members, privacy, membership, optional AI relevance |
+| `gpt_imports` | the app | Every status import from an external AI and what it changed |
 | `statuses`, `post_status`, `post_status_history`, `post_notes`, `post_seen`, `app_settings` | the phone app, `reject.py` | Your own status per listing (current + append-only history, source `human` / `gpt` / `system`), the editable status list, notes, which listings you opened, app settings |
 | `post_analyses` | `analyze_posts.py` | One row per analysis attempt: AI decision/rule/reason, final decision/rule/reason, `decided_by`, `facts_json`, `hard_rules_json`, `raw_response_json`, `model`, `pipeline_version`, `config_hash`, token counts, `cost_usd`, `analyzed_at`, `status` (`ok`/`error`), `error` |
 
@@ -434,6 +461,7 @@ fb_harness_scan.py      browser script executed inside browser-harness (not plai
 analyze_posts.py        AI analysis entry point
 export_results.py       write all stored results to a text or JSON report
 app_server.py           the phone app's server (API + built web app)
+discover_groups.py      find groups (yours + search results); fb_harness_discover.py runs in the browser
 why.py                  explain a stored decision
 reject.py               reject (or un-reject) listings by hand - the "human rejected" pile
 bot_chrome.py           start / show the bot's own Chrome (log in to Facebook there once)
@@ -458,6 +486,9 @@ apartment_bot/
   outreach.py           WhatsApp link and opening-message template
   settings.py           app settings (app_settings table)
   auth.py               app login: token + one-time pairing code
+  groups.py             the groups to scan (fb_groups table, seeded from config.yaml)
+  group_score.py        optional AI relevance rating for groups
+  gpt_io.py             export to / import from an external chat AI
   server.py             FastAPI routes
 web/                    the phone app (React + Vite + TypeScript); build with npm run build
 tests/                  python -m pytest
@@ -481,7 +512,8 @@ Created at run time and git-ignored: `apartments.db` (+ backups), `pictures/`, e
   `_check(rule, status, detail)` and add it to `run_checks()`; the order there decides
   which failure is reported. Add the rule name to `RULES` in `ai_filter.py`.
 - **Schema change**: append a SQL string to `MIGRATIONS` in `db.py`.
-- **Add or remove a Facebook group**: edit `facebook.groups` in `config.yaml`.
+- **Add or remove a Facebook group**: tick it in the app's Groups screen (or add it there by
+  link). `facebook.groups` in `config.yaml` is only read when the groups table is empty.
 
 ## Troubleshooting
 

@@ -93,6 +93,37 @@ export interface Detail extends Card {
 export interface Settings {
   whatsapp_template: string;
   recent_days: number | null;
+  group_search_queries: string[] | null;
+}
+
+export interface Group {
+  id: string;
+  name: string | null;
+  url: string;
+  member_count: number | null;
+  privacy: "public" | "private" | null;
+  is_member: number | null;
+  description: string | null;
+  relevance_score: number | null;
+  relevance_reason: string | null;
+  selected: number;
+  source: "config" | "my_groups" | "search" | "manual";
+  search_query: string | null;
+}
+
+export interface GptChange {
+  post_id: string;
+  status: string;
+  label: string;
+  note: string | null;
+  current: { status: string; label: string; source: string; note: string | null } | null;
+}
+
+export interface GptPreview {
+  changes: GptChange[];
+  conflicts: GptChange[];
+  unchanged: number;
+  errors: string[];
 }
 
 export interface Meta {
@@ -188,4 +219,14 @@ export const api = {
     call<StatusDef[]>(`/api/statuses/${key}`, send("PUT", { label, color, needs_note })),
   reorderStatuses: (keys: string[]) => call<StatusDef[]>("/api/statuses/order", send("PUT", { keys })),
   deleteStatus: (key: string) => call<StatusDef[]>(`/api/statuses/${key}`, send("DELETE")),
+  groups: () => call<{ groups: Group[]; queries: string[] }>("/api/groups"),
+  selectGroup: (id: string, selected: boolean) => call(`/api/groups/${encodeURIComponent(id)}`, send("PUT", { selected })),
+  addGroup: (url: string) => call<{ id: string }>("/api/groups", send("POST", { url })),
+  startDiscovery: (score: boolean) => call("/api/groups/discover", send("POST", { score })),
+  discovery: () => call<{ running: boolean; exit_code: number | null; log: string[] }>("/api/groups/discover"),
+  gptExport: (includeOld: boolean) =>
+    call<{ text: string; count: number; posts: unknown[]; prompt: string }>(`/api/gpt/export?include_old=${includeOld}`),
+  gptPreview: (text: string) => call<GptPreview>("/api/gpt/preview", send("POST", { text })),
+  gptApply: (text: string, override_human: boolean) =>
+    call<{ applied: number; skipped: number; errors: string[] }>("/api/gpt/apply", send("POST", { text, override_human })),
 };
