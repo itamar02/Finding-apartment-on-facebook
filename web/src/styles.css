@@ -1148,3 +1148,12 @@ button.badge {
   flex-direction: column;
   align-items: stretch;
 }
+
+.price-note {
+  margin-inline-start: 4.2em;
+  white-space: pre-wrap;
+}
+
+.price-note-input {
+  margin-top: 6px;
+}

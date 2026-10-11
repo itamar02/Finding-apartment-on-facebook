@@ -3,6 +3,11 @@ import { api, Card } from "../api";
 import { useApp } from "../App";
 import { money } from "../format";
 
+/** Puts " ₪" after every number that doesn't have a shekel sign yet (a price note is mostly amounts). */
+export function addShekel(text: string): string {
+  return text.replace(/(\d+(?:,\d{3})*(?:\.\d+)?)(?!\d)(?!\s*(?:₪|ש"ח|ש״ח|שח|שקל))/g, "$1 ₪");
+}
+
 /** The two lines at the top of every listing: location (as precise as the post allows; editable) and price. */
 export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: (loc: Card["location"]) => void }) {
   const app = useApp();
@@ -13,6 +18,8 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
   const [price, setPrice] = useState(card.price);
   const [bills, setBills] = useState(card.bills);
   const [billsDraft, setBillsDraft] = useState<"included" | "excluded" | null>(null);
+  const [note, setNote] = useState(card.price_note);
+  const [noteDraft, setNoteDraft] = useState("");
   const [editingPrice, setEditingPrice] = useState(false);
   const [priceDraft, setPriceDraft] = useState("");
   const rent = money(price.rent);
@@ -21,11 +28,12 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
   const BILL_TEXT = { included: "כולל חשבונות", excluded: "לא כולל חשבונות", unknown: "חשבונות לא צוינו" } as const;
   const KIND: Record<string, string> = { arnona: "ארנונה", vaad_bayit: "ועד בית", utilities: "מים/חשמל", bills_bundle: "חשבונות", internet: "אינטרנט" };
 
-  async function savePrice(value: number | null, billsValue: "included" | "excluded" | null) {
+  async function savePrice(value: number | null, billsValue: "included" | "excluded" | null, noteValue: string | null) {
     try {
-      const r = await api.setPrice(card.post_id, value, billsValue);
+      const r = await api.setPrice(card.post_id, value, billsValue, noteValue);
       setPrice(r.price);
       setBills(r.bills);
+      setNote(r.note);
       setEditingPrice(false);
       app.toast({ text: value ? "המחיר עודכן" : "חזר למחיר מהמודעה" });
     } catch (e) {
@@ -97,22 +105,35 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
           <span className="grow">
             <input autoFocus inputMode="numeric" dir="ltr" value={priceDraft} placeholder="שכירות חודשית בשקלים" onChange={(e) => setPriceDraft(e.target.value.replace(/\D/g, ""))} />
             <span className="row">
-              <button className="btn primary" disabled={!priceDraft && !billsDraft} onClick={() => {
+              <button className="btn primary" disabled={false} onClick={() => {
                   // An unchanged rent is not an override; only a different number is stored.
                   const typed = priceDraft ? Number(priceDraft) : null;
-                  savePrice(typed !== null && typed === price.rent && !price.mine ? null : typed, billsDraft);
+                  savePrice(typed !== null && typed === price.rent && !price.mine ? null : typed, billsDraft, addShekel(noteDraft).trim() || null);
                 }}>
                 שמור
               </button>
               <button className="btn" onClick={() => setEditingPrice(false)}>
                 ביטול
               </button>
-              {(price.mine || bills.mine) && (
-                <button className="btn" onClick={() => savePrice(null, null)}>
+              {(price.mine || bills.mine || note) && (
+                <button className="btn" onClick={() => savePrice(null, null, null)}>
                   חזור למודעה
                 </button>
               )}
             </span>
+            <textarea
+              rows={3}
+              dir="auto"
+              className="price-note-input"
+              placeholder="הערה חופשית על המחיר: מה כלול, חשבונות, ארנונה… (מספרים מקבלים ₪ אוטומטית)"
+              value={noteDraft}
+              onChange={(e) => {
+                const v = e.target.value;
+                // A finished number (followed by a space, comma or line break, with the cursor at the end) gets its shekel sign.
+                setNoteDraft(/[\s,;]$/.test(v) && e.target.selectionStart === v.length ? addShekel(v) : v);
+              }}
+              onBlur={() => setNoteDraft((v) => addShekel(v))}
+            />
             <span className="pills bills-pick">
               {(["included", "excluded"] as const).map((b) => (
                 <button key={b} className={"pill" + (billsDraft === b ? " on" : "")} onClick={() => setBillsDraft(billsDraft === b ? null : b)}>
@@ -145,6 +166,7 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
               onClick={() => {
                 setPriceDraft(price.rent ? String(price.rent) : "");
                 setBillsDraft(bills.mine ? (bills.state === "unknown" ? null : bills.state) : null);
+                setNoteDraft(note ?? "");
                 setEditingPrice(true);
               }}
             >
@@ -153,6 +175,11 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
           </>
         )}
       </div>
+      {!editingPrice && note && (
+        <div className="small price-note" dir="auto">
+          📝 {note}
+        </div>
+      )}
     </div>
   );
 }

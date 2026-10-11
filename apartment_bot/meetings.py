@@ -199,12 +199,15 @@ def schedule_post(db, cfg, user_id, post_id, date, time, address=None, minutes=4
     my_bills = db.execute("SELECT bills FROM post_bills WHERE post_id = ? AND user_id = ?", (post_id, user_id)).fetchone()
     from .feed import bills_info
     bills = bills_info(facts, my_bills[0] if my_bills else None)["state"]
+    price_note = db.execute("SELECT note FROM post_price_note WHERE post_id = ? AND user_id = ?",
+                            (post_id, user_id)).fetchone()
     my_notes = [r[0] for r in db.execute("SELECT body FROM post_notes WHERE post_id = ? AND user_id = ? ORDER BY id",
                                          (post_id, user_id))]
     description = "\n".join(filter(None, [
         f"מפרסם/ת: {post['author']}" if post["author"] else None,
         f"טלפון: {', '.join(phones)}" if phones else None,
         (f"מחיר: {rent:,} ₪" + {"included": " (כולל חשבונות)", "excluded": " (לא כולל חשבונות)"}.get(bills, "")) if rent else None,
+        f"הערה על המחיר: {price_note[0]}" if price_note else None,
         f"מודעה: {post['url']}",
         notes,
         *(f"הערה: {n}" for n in my_notes),

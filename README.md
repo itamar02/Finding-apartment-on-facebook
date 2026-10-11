@@ -426,6 +426,9 @@ Next to the price it says whether the **bills are included** ("כולל חשבו
 "חשבונות לא צוינו"): read from the post (arnona, building fee, water/electricity, internet marked
 included or not), with the known separate amounts shown. In the ✏️ editor you can set it by hand;
 it is also written into calendar events.
+The ✏️ editor also has a **free-text note on the price** (what is and isn't included, extra costs...):
+every number you type gets its " ₪" automatically once you finish it, and the note is shown under the
+price and goes into calendar events.
 
 ### Google Calendar
 

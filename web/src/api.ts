@@ -71,6 +71,7 @@ export interface Card {
   location: { text: string | null; hints: string[]; mine: boolean; ai_text: string | null };
   price: { rent: number | null; total: number | null; mine: boolean; ai_rent: number | null };
   bills: Bills;
+  price_note: string | null;
   meeting: { at: string; address: string | null } | null;
   partial_facts: boolean;
   status: MyStatus | null;
@@ -412,8 +413,8 @@ export const api = {
     call<{ location: Card["location"] }>(`/api/posts/${id}/location`, send("PUT", { location })),
   setMeeting: (id: string, at: string | null, address: string | null) =>
     call<{ meeting: Card["meeting"]; status: MyStatus | null }>(`/api/posts/${id}/meeting`, send("PUT", { at, address })),
-  setPrice: (id: string, rent: number | null, bills: "included" | "excluded" | null) =>
-    call<{ price: Card["price"]; bills: Bills }>(`/api/posts/${id}/price`, send("PUT", { rent, bills })),
+  setPrice: (id: string, rent: number | null, bills: "included" | "excluded" | null, note: string | null) =>
+    call<{ price: Card["price"]; bills: Bills; note: string | null }>(`/api/posts/${id}/price`, send("PUT", { rent, bills, note })),
   addToCalendar: (id: string, v: { date: string; time: string; address: string | null; minutes: number; notes: string | null }) =>
     call<{ event_link: string | null; post_id: string }>(`/api/posts/${id}/calendar`, send("POST", v)),
   calendarStatus: () => call<{ client_file: boolean; signed_in: boolean }>("/api/calendar"),

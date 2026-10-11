@@ -216,3 +216,13 @@ def test_meeting_time_is_stored_shown_and_moves_the_status(client):
     assert get()["status"]["status"] == "visited" and get()["meeting"]["at"] == "2026-10-21T10:00"
     assert client.put("/api/posts/1001/meeting", json={"at": "next tuesday"}, headers=W).status_code == 400
     assert client.put("/api/posts/1001/meeting", json={"at": None}, headers=W).json()["meeting"] is None
+
+
+def test_free_text_note_on_the_price(client):
+    card = lambda: [c for c in client.get("/api/posts?decision=PASS").json()["items"] if c["post_id"] == "1001"][0]
+    assert card()["price_note"] is None
+    r = client.put("/api/posts/1001/price", json={"rent": None, "bills": None, "note": "  לא כולל חשבונות, ארנונה 400 ₪  "}, headers=W).json()
+    assert r["note"] == "לא כולל חשבונות, ארנונה 400 ₪" and card()["price_note"] == r["note"]
+    assert card()["price"]["rent"] == 5000 and not card()["price"]["mine"]                 # the note alone changes no number
+    r = client.put("/api/posts/1001/price", json={"rent": None, "bills": None, "note": ""}, headers=W).json()
+    assert r["note"] is None and card()["price_note"] is None

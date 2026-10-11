@@ -353,6 +353,16 @@ MIGRATIONS = [
         PRIMARY KEY (post_id, user_id)
     );
     """,
+    # 13 -> 14: a free-text note on the price (what is and isn't included, extra costs...).
+    """
+    CREATE TABLE post_price_note (
+        post_id    TEXT NOT NULL,
+        user_id    TEXT NOT NULL,
+        note       TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (post_id, user_id)
+    );
+    """,
 ]
 
 # A post's current text: its latest version if it was edited, else the text first seen.

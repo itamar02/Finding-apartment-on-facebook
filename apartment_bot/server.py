@@ -84,6 +84,7 @@ class MeetingIn(BaseModel):
 class PriceIn(BaseModel):
     rent: Optional[int] = None         # None / 0 = back to what the AI read
     bills: Optional[str] = None        # included | excluded; None = back to what the AI read
+    note: Optional[str] = None         # free text about the price; empty clears it
 
 
 class CalendarIn(BaseModel):
@@ -309,7 +310,13 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
             raise HTTPException(400, "not a sensible rent")
         if body.bills not in (None, "included", "excluded"):
             raise HTTPException(400, "bills must be included or excluded")
+        note = (body.note or "").strip()[:1000]
         with db:
+            if note:
+                db.execute("INSERT OR REPLACE INTO post_price_note (post_id, user_id, note, updated_at) VALUES (?,?,?,?)",
+                           (post_id, uid, note, statuses.now_iso()))
+            else:
+                db.execute("DELETE FROM post_price_note WHERE post_id = ? AND user_id = ?", (post_id, uid))
             if body.bills:
                 db.execute("INSERT OR REPLACE INTO post_bills (post_id, user_id, bills, updated_at) VALUES (?,?,?,?)",
                            (post_id, uid, body.bills, statuses.now_iso()))
@@ -321,7 +328,7 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
             else:
                 db.execute("DELETE FROM post_price WHERE post_id = ? AND user_id = ?", (post_id, uid))
         card = feed.post_detail(db, cfg, uid, post_id)
-        return {"price": card["price"], "bills": card["bills"]}
+        return {"price": card["price"], "bills": card["bills"], "note": card["price_note"]}
 
     @app.post("/api/posts/{post_id}/calendar")
     def add_to_calendar(post_id: str, body: CalendarIn, db=Depends(get_db)):
