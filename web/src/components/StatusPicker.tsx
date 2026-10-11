@@ -109,7 +109,7 @@ export default function StatusPicker({
                 👍 מתאימה לי
               </button>
               <button className="btn vote-wide on-mid-btn" onClick={() => onPick("backup", current?.status === "backup" ? current.note : null)}>
-                🟡 גיבוי
+                🤷 גיבוי
               </button>
               <button className="btn vote-wide on-bad-btn" onClick={() => onPick("not_relevant", null)}>
                 🗑️ לא מתאימה

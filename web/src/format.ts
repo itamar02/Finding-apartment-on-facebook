@@ -44,7 +44,7 @@ export function verdictOf(ai: { decision: Decision } | null, status: { status: s
   if (status) {
     const by = SOURCE_LABEL[status.source] ?? status.source;
     if (status.status === "not_relevant") return { text: `✗ לא רלוונטי · ${by}`, color: "var(--reject)", decided: true };
-    if (status.status === "backup") return { text: `🟡 גיבוי · ${by}`, color: "#ea580c", decided: true };
+    if (status.status === "backup") return { text: `🤷 גיבוי · ${by}`, color: "#ea580c", decided: true };
     if (status.status === "taken") return { text: `נתפסה · ${by}`, color: "var(--muted)", decided: true };
     if (APPROVED.has(status.status)) return { text: `✓ אושרה · ${by}`, color: "var(--pass)", decided: true };
   }

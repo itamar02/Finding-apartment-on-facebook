@@ -123,7 +123,7 @@ export default function PostCard({ card }: { card: Card }) {
             title="גיבוי: לא דירת החלומות, אבל לא זורק (הקשה נוספת מבטלת)"
             onClick={() => change(card.post_id, backup ? null : "backup")}
           >
-            🟡
+            🤷
           </button>
           <button
             className={"btn vote" + (disliked ? " on-bad" : "")}
