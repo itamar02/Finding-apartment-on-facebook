@@ -412,6 +412,10 @@ events, and "back to the post" restores the original.
 The price has the same ✏️: type the new monthly rent when it changed (or the AI misread it); it
 replaces the AI's number on the card, in the price filter and sorting, and in calendar events, and
 the post's own figure stays visible next to it.
+Next to the price it says whether the **bills are included** ("כולל חשבונות" / "לא כולל חשבונות" /
+"חשבונות לא צוינו"): read from the post (arnona, building fee, water/electricity, internet marked
+included or not), with the known separate amounts shown. In the ✏️ editor you can set it by hand;
+it is also written into calendar events.
 
 ### Google Calendar
 

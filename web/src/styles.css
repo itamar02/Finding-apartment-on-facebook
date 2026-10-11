@@ -1097,3 +1097,21 @@ button.badge {
 .tag.mine {
   white-space: nowrap;
 }
+
+.bills.included {
+  color: var(--pass);
+}
+
+.bills.excluded {
+  color: var(--review);
+}
+
+.bills.unknown {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.bills-pick {
+  margin-top: 6px;
+  display: flex;
+}

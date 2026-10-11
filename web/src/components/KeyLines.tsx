@@ -11,15 +11,21 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
   const [draft, setDraft] = useState("");
 
   const [price, setPrice] = useState(card.price);
+  const [bills, setBills] = useState(card.bills);
+  const [billsDraft, setBillsDraft] = useState<"included" | "excluded" | null>(null);
   const [editingPrice, setEditingPrice] = useState(false);
   const [priceDraft, setPriceDraft] = useState("");
   const rent = money(price.rent);
   const total = !price.mine && price.total && price.total !== price.rent ? money(price.total) : null;
 
-  async function savePrice(value: number | null) {
+  const BILL_TEXT = { included: "כולל חשבונות", excluded: "לא כולל חשבונות", unknown: "חשבונות לא צוינו" } as const;
+  const KIND: Record<string, string> = { arnona: "ארנונה", vaad_bayit: "ועד בית", utilities: "מים/חשמל", bills_bundle: "חשבונות", internet: "אינטרנט" };
+
+  async function savePrice(value: number | null, billsValue: "included" | "excluded" | null) {
     try {
-      const r = await api.setPrice(card.post_id, value);
+      const r = await api.setPrice(card.post_id, value, billsValue);
       setPrice(r.price);
+      setBills(r.bills);
       setEditingPrice(false);
       app.toast({ text: value ? "המחיר עודכן" : "חזר למחיר מהמודעה" });
     } catch (e) {
@@ -91,17 +97,28 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
           <span className="grow">
             <input autoFocus inputMode="numeric" dir="ltr" value={priceDraft} placeholder="שכירות חודשית בשקלים" onChange={(e) => setPriceDraft(e.target.value.replace(/\D/g, ""))} />
             <span className="row">
-              <button className="btn primary" disabled={!priceDraft} onClick={() => savePrice(Number(priceDraft))}>
+              <button className="btn primary" disabled={!priceDraft && !billsDraft} onClick={() => {
+                  // An unchanged rent is not an override; only a different number is stored.
+                  const typed = priceDraft ? Number(priceDraft) : null;
+                  savePrice(typed !== null && typed === price.rent && !price.mine ? null : typed, billsDraft);
+                }}>
                 שמור
               </button>
               <button className="btn" onClick={() => setEditingPrice(false)}>
                 ביטול
               </button>
-              {price.mine && (
-                <button className="btn" onClick={() => savePrice(null)}>
+              {(price.mine || bills.mine) && (
+                <button className="btn" onClick={() => savePrice(null, null)}>
                   חזור למודעה
                 </button>
               )}
+            </span>
+            <span className="pills bills-pick">
+              {(["included", "excluded"] as const).map((b) => (
+                <button key={b} className={"pill" + (billsDraft === b ? " on" : "")} onClick={() => setBillsDraft(billsDraft === b ? null : b)}>
+                  {BILL_TEXT[b]}
+                </button>
+              ))}
             </span>
           </span>
         ) : (
@@ -110,6 +127,16 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
               {rent ? (total ? `${rent} (סה״כ ${total} עם הוצאות)` : rent) : "לא צוין"}
               {price.mine && <span className="tag mine">עודכן ידנית</span>}
               {price.mine && price.ai_rent && <span className="small muted"> (במודעה: {money(price.ai_rent)})</span>}
+              {rent && (
+                <span className={"bills " + bills.state}>
+                  {" · "}
+                  {BILL_TEXT[bills.state]}
+                  {bills.mine && " (עודכן ידנית)"}
+                </span>
+              )}
+              {rent && bills.state === "excluded" && bills.extras.length > 0 && (
+                <span className="small muted"> ({bills.extras.map((e) => `${KIND[e.kind] ?? e.kind} ${e.amount.toLocaleString("he-IL")} ₪`).join(", ")})</span>
+              )}
             </span>
             <button
               className="icon small-icon"
@@ -117,6 +144,7 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
               title="המחיר השתנה"
               onClick={() => {
                 setPriceDraft(price.rent ? String(price.rent) : "");
+                setBillsDraft(bills.mine ? (bills.state === "unknown" ? null : bills.state) : null);
                 setEditingPrice(true);
               }}
             >

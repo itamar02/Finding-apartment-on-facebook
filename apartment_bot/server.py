@@ -78,6 +78,7 @@ class LocationIn(BaseModel):
 
 class PriceIn(BaseModel):
     rent: Optional[int] = None         # None / 0 = back to what the AI read
+    bills: Optional[str] = None        # included | excluded; None = back to what the AI read
 
 
 class CalendarIn(BaseModel):
@@ -284,13 +285,21 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
             raise HTTPException(404, "unknown post")
         if body.rent is not None and not 0 <= body.rent <= 1_000_000:
             raise HTTPException(400, "not a sensible rent")
+        if body.bills not in (None, "included", "excluded"):
+            raise HTTPException(400, "bills must be included or excluded")
         with db:
+            if body.bills:
+                db.execute("INSERT OR REPLACE INTO post_bills (post_id, user_id, bills, updated_at) VALUES (?,?,?,?)",
+                           (post_id, uid, body.bills, statuses.now_iso()))
+            else:
+                db.execute("DELETE FROM post_bills WHERE post_id = ? AND user_id = ?", (post_id, uid))
             if body.rent:
                 db.execute("INSERT OR REPLACE INTO post_price (post_id, user_id, rent_ils, updated_at) VALUES (?,?,?,?)",
                            (post_id, uid, body.rent, statuses.now_iso()))
             else:
                 db.execute("DELETE FROM post_price WHERE post_id = ? AND user_id = ?", (post_id, uid))
-        return {"price": feed.post_detail(db, cfg, uid, post_id)["price"]}
+        card = feed.post_detail(db, cfg, uid, post_id)
+        return {"price": card["price"], "bills": card["bills"]}
 
     @app.post("/api/posts/{post_id}/calendar")
     def add_to_calendar(post_id: str, body: CalendarIn, db=Depends(get_db)):

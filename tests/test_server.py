@@ -182,3 +182,23 @@ def test_my_price_replaces_the_ai_reading_in_the_card_filters_and_sorting(client
     assert r["price"]["rent"] == 5000 and not r["price"]["mine"]
     assert client.put("/api/posts/1001/price", json={"rent": 99999999}, headers=W).status_code == 400
     assert client.put("/api/posts/9999/price", json={"rent": 3000}, headers=W).status_code == 404
+
+
+def test_bills_included_or_not_from_the_post_and_by_hand(client):
+    from apartment_bot.feed import bills_info
+    inc = {"additional_costs": [{"kind": "utilities", "included_in_rent": "yes", "amount_ils": None},
+                                {"kind": "cleaning", "included_in_rent": "no", "amount_ils": 100}]}
+    exc = {"additional_costs": [{"kind": "arnona", "included_in_rent": "no", "amount_ils": 400},
+                                {"kind": "internet", "included_in_rent": "yes", "amount_ils": None}]}
+    assert bills_info(inc)["state"] == "included"                        # cleaning isn't a bill
+    assert bills_info(exc)["state"] == "excluded" and bills_info(exc)["extras"] == [{"kind": "arnona", "amount": 400}]
+    assert bills_info({})["state"] == "unknown" and bills_info(None)["state"] == "unknown"
+    assert bills_info(exc, "included") == {**bills_info(exc, "included"), "state": "included", "mine": True,
+                                           "ai_state": "excluded"}
+    c = lambda: [x for x in client.get("/api/posts?decision=PASS").json()["items"] if x["post_id"] == "1001"][0]
+    assert c()["bills"]["state"] == "unknown"
+    r = client.put("/api/posts/1001/price", json={"rent": None, "bills": "excluded"}, headers=W).json()
+    assert r["bills"]["state"] == "excluded" and r["bills"]["mine"] and r["price"]["rent"] == 5000
+    assert client.put("/api/posts/1001/price", json={"rent": 4800, "bills": "maybe"}, headers=W).status_code == 400
+    r = client.put("/api/posts/1001/price", json={"rent": None, "bills": None}, headers=W).json()
+    assert r["bills"]["state"] == "unknown" and not r["bills"]["mine"]

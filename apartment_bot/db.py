@@ -327,6 +327,16 @@ MIGRATIONS = [
         PRIMARY KEY (post_id, user_id)
     );
     """,
+    # 10 -> 11: whether the rent includes the bills (arnona, vaad, water, electricity...), as I set it.
+    """
+    CREATE TABLE post_bills (
+        post_id    TEXT NOT NULL,
+        user_id    TEXT NOT NULL,
+        bills      TEXT NOT NULL CHECK (bills IN ('included', 'excluded')),
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (post_id, user_id)
+    );
+    """,
 ]
 
 # A post's current text: its latest version if it was edited, else the text first seen.

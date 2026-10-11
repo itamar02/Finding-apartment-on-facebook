@@ -24,8 +24,9 @@ SELECT p.post_id, p.group_id, p.author, p.author_id, p.posted_at, {text} AS text
        a.final_decision, a.final_reason, a.final_rule, a.decided_by, a.facts_json, a.analyzed_at,
        s.status, s.note AS status_note, s.source AS status_source, s.updated_at AS status_updated_at,
        (SELECT count(*) FROM post_notes n WHERE n.post_id = p.post_id AND n.user_id = :user) AS notes_count,
-       l.location AS my_location, pr.rent_ils AS my_rent
+       l.location AS my_location, pr.rent_ils AS my_rent, pb.bills AS my_bills
 FROM posts p
+LEFT JOIN post_bills pb ON pb.post_id = p.post_id AND pb.user_id = :user
 LEFT JOIN post_location l ON l.post_id = p.post_id AND l.user_id = :user
 LEFT JOIN post_price pr ON pr.post_id = p.post_id AND pr.user_id = :user
 LEFT JOIN post_analyses a ON a.id = (
@@ -112,6 +113,27 @@ def query_posts(db, cfg, user_id, *, decisions=None, statuses_=None, exclude_sta
     return {"total": len(cards), "items": page}
 
 
+BILL_KINDS = ("arnona", "vaad_bayit", "utilities", "bills_bundle", "internet")
+
+
+def bills_info(facts, my_bills=None):
+    """Does the rent include the bills? {"state": included | excluded | unknown, "mine", "extras"}.
+
+    From the post: any bill-type extra cost marked "not included in rent" -> excluded; else any marked
+    included -> included; else unknown. What I set wins. extras lists the known separate amounts.
+    """
+    costs = [c for c in (facts or {}).get("additional_costs") or [] if c.get("kind") in BILL_KINDS]
+    if any(c.get("included_in_rent") == "no" for c in costs):
+        ai = "excluded"
+    elif any(c.get("included_in_rent") == "yes" for c in costs):
+        ai = "included"
+    else:
+        ai = "unknown"
+    extras = [{"kind": c["kind"], "amount": c.get("amount_ils")} for c in costs
+              if c.get("included_in_rent") == "no" and c.get("amount_ils")]
+    return {"state": my_bills or ai, "mine": bool(my_bills), "ai_state": ai, "extras": extras}
+
+
 def location_info(facts, my_location=None):
     """The place of a listing, as precise as the post allows: {"text", "hints", "mine", "ai_text"}.
 
@@ -155,6 +177,7 @@ def _card(r, facts, contact, names, template):
             "decided_by": r["decided_by"], "analyzed_at": r["analyzed_at"]},
         "facts": {k: facts.get(k) for k in CARD_FACTS} if facts else None,
         "location": location_info(facts, r["my_location"]),
+        "bills": bills_info(facts, r["my_bills"]),
         "price": {"rent": (facts or {}).get("rent_ils"), "total": (facts or {}).get("total_monthly_ils_known"),
                   "mine": bool((facts or {}).get("_rent_mine")), "ai_rent": (facts or {}).get(
                       "_ai_rent_ils" if (facts or {}).get("_rent_mine") else "rent_ils")},
