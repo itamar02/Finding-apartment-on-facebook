@@ -19,11 +19,20 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
   const [bills, setBills] = useState(card.bills);
   const [billsDraft, setBillsDraft] = useState<"included" | "excluded" | null>(null);
   const [note, setNote] = useState(card.price_note);
-  const [noteDraft, setNoteDraft] = useState("");
   const [editingPrice, setEditingPrice] = useState(false);
-  const [priceDraft, setPriceDraft] = useState("");
+  const [textDraft, setTextDraft] = useState("");
   const rent = money(price.rent);
   const total = !price.mine && price.total && price.total !== price.rent ? money(price.total) : null;
+  const defaultText = price.rent ? `${price.rent.toLocaleString("he-IL")} ₪` : "";
+
+  /** The rent in what I typed: the first amount of at least 500 (so "ארנונה 400" isn't taken for the rent). */
+  function rentIn(text: string): number | null {
+    for (const m of text.match(/\d+(?:,\d{3})*(?:\.\d+)?/g) ?? []) {
+      const n = Number(m.replace(/,/g, ""));
+      if (n >= 500) return Math.round(n);
+    }
+    return null;
+  }
 
   const BILL_TEXT = { included: "כולל חשבונות", excluded: "לא כולל חשבונות", unknown: "חשבונות לא צוינו" } as const;
   const KIND: Record<string, string> = { arnona: "ארנונה", vaad_bayit: "ועד בית", utilities: "מים/חשמל", bills_bundle: "חשבונות", internet: "אינטרנט" };
@@ -35,7 +44,7 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
       setBills(r.bills);
       setNote(r.note);
       setEditingPrice(false);
-      app.toast({ text: value ? "המחיר עודכן" : "חזר למחיר מהמודעה" });
+      app.toast({ text: value || noteValue || billsValue ? "המחיר עודכן" : "חזר למחיר מהמודעה" });
     } catch (e) {
       app.fail(e);
     }
@@ -103,13 +112,39 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
         <span className="key">מחיר:</span>
         {editingPrice ? (
           <span className="grow">
-            <input autoFocus inputMode="numeric" dir="ltr" value={priceDraft} placeholder="שכירות חודשית בשקלים" onChange={(e) => setPriceDraft(e.target.value.replace(/\D/g, ""))} />
+            <textarea
+              autoFocus
+              rows={3}
+              dir="auto"
+              className="price-note-input"
+              placeholder="כתבו חופשי: 3200 לא כולל חשבונות, ארנונה 400 … (מספרים מקבלים ₪ אוטומטית)"
+              value={textDraft}
+              onChange={(e) => {
+                const v = e.target.value;
+                // A finished number (followed by a space, comma or line break, with the cursor at the end) gets its shekel sign.
+                setTextDraft(/[\s,;]$/.test(v) && e.target.selectionStart === v.length ? addShekel(v) : v);
+              }}
+              onBlur={() => setTextDraft((v) => addShekel(v))}
+            />
+            <span className="small muted">המחיר לסינון ולמיון הוא הסכום הראשון מ-500 ומעלה.</span>
+            <span className="pills bills-pick">
+              {(["included", "excluded"] as const).map((b) => (
+                <button key={b} className={"pill" + (billsDraft === b ? " on" : "")} onClick={() => setBillsDraft(billsDraft === b ? null : b)}>
+                  {BILL_TEXT[b]}
+                </button>
+              ))}
+            </span>
             <span className="row">
-              <button className="btn primary" disabled={false} onClick={() => {
-                  // An unchanged rent is not an override; only a different number is stored.
-                  const typed = priceDraft ? Number(priceDraft) : null;
-                  savePrice(typed !== null && typed === price.rent && !price.mine ? null : typed, billsDraft, addShekel(noteDraft).trim() || null);
-                }}>
+              <button
+                className="btn primary"
+                onClick={() => {
+                  const text = addShekel(textDraft).trim();
+                  const typedRent = rentIn(text);
+                  // Text that just repeats the post's own price is not an edit.
+                  const same = !price.mine && !note && text === defaultText;
+                  savePrice(same ? null : typedRent !== null && typedRent === price.rent && !price.mine ? null : typedRent, billsDraft, same ? null : text || null);
+                }}
+              >
                 שמור
               </button>
               <button className="btn" onClick={() => setEditingPrice(false)}>
@@ -121,41 +156,21 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
                 </button>
               )}
             </span>
-            <textarea
-              rows={3}
-              dir="auto"
-              className="price-note-input"
-              placeholder="הערה חופשית על המחיר: מה כלול, חשבונות, ארנונה… (מספרים מקבלים ₪ אוטומטית)"
-              value={noteDraft}
-              onChange={(e) => {
-                const v = e.target.value;
-                // A finished number (followed by a space, comma or line break, with the cursor at the end) gets its shekel sign.
-                setNoteDraft(/[\s,;]$/.test(v) && e.target.selectionStart === v.length ? addShekel(v) : v);
-              }}
-              onBlur={() => setNoteDraft((v) => addShekel(v))}
-            />
-            <span className="pills bills-pick">
-              {(["included", "excluded"] as const).map((b) => (
-                <button key={b} className={"pill" + (billsDraft === b ? " on" : "")} onClick={() => setBillsDraft(billsDraft === b ? null : b)}>
-                  {BILL_TEXT[b]}
-                </button>
-              ))}
-            </span>
           </span>
         ) : (
           <>
-            <span className="grow">
-              {rent ? (total ? `${rent} (סה״כ ${total} עם הוצאות)` : rent) : "לא צוין"}
-              {price.mine && <span className="tag mine">עודכן ידנית</span>}
-              {price.mine && price.ai_rent && <span className="small muted"> (במודעה: {money(price.ai_rent)})</span>}
-              {rent && (
+            <span className="grow" dir="auto">
+              {note ? note : rent ? (total ? `${rent} (סה״כ ${total} עם הוצאות)` : rent) : "לא צוין"}
+              {(price.mine || note) && <span className="tag mine">עודכן ידנית</span>}
+              {(price.mine || note) && price.ai_rent && price.ai_rent !== price.rent && <span className="small muted"> (במודעה: {money(price.ai_rent)})</span>}
+              {rent && (!note || bills.mine) && (
                 <span className={"bills " + bills.state}>
                   {" · "}
                   {BILL_TEXT[bills.state]}
                   {bills.mine && " (עודכן ידנית)"}
                 </span>
               )}
-              {rent && bills.state === "excluded" && bills.extras.length > 0 && (
+              {rent && !note && bills.state === "excluded" && bills.extras.length > 0 && (
                 <span className="small muted"> ({bills.extras.map((e) => `${KIND[e.kind] ?? e.kind} ${e.amount.toLocaleString("he-IL")} ₪`).join(", ")})</span>
               )}
             </span>
@@ -164,9 +179,8 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
               aria-label="עדכון מחיר"
               title="המחיר השתנה"
               onClick={() => {
-                setPriceDraft(price.rent ? String(price.rent) : "");
+                setTextDraft(note ?? defaultText);
                 setBillsDraft(bills.mine ? (bills.state === "unknown" ? null : bills.state) : null);
-                setNoteDraft(note ?? "");
                 setEditingPrice(true);
               }}
             >
@@ -175,11 +189,6 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
           </>
         )}
       </div>
-      {!editingPrice && note && (
-        <div className="small price-note" dir="auto">
-          📝 {note}
-        </div>
-      )}
     </div>
   );
 }

@@ -426,9 +426,10 @@ Next to the price it says whether the **bills are included** ("כולל חשבו
 "חשבונות לא צוינו"): read from the post (arnona, building fee, water/electricity, internet marked
 included or not), with the known separate amounts shown. In the ✏️ editor you can set it by hand;
 it is also written into calendar events.
-The ✏️ editor also has a **free-text note on the price** (what is and isn't included, extra costs...):
-every number you type gets its " ₪" automatically once you finish it, and the note is shown under the
-price and goes into calendar events.
+The ✏️ editor is **one free-text field**: write the price the way you would say it ("3200 not including
+bills, arnona 400, electricity by usage"). Every number gets its " ₪" automatically once you finish it. What
+you wrote is what the price line shows (the post's own figure stays next to it) and goes into calendar events;
+for the price filter and sorting the rent is the first amount of 500 or more in your text.
 
 ### Google Calendar
 
