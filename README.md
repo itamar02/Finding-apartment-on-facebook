@@ -419,6 +419,12 @@ it is also written into calendar events.
 
 ### Google Calendar
 
+**Without any setup:** the post page's **Open in Google Calendar** button opens Google Calendar's own
+"new event" page, already filled in (date, time, address, phone, post link, your notes); you tap Save
+there, in the Google account your phone or browser is already signed in to. Nothing to connect, nothing
+stored. The status becomes *Meeting scheduled* when you open it (Undo is in the message). The
+automatic version below creates the event for you from the app, and needs the one-time connection.
+
 Two ways in, both only on your tap: a viewing proposed from a shared WhatsApp chat (see above), or
 **📅 Add to Google Calendar** on any listing's page (date, time, length, address; one event, and the
 status becomes *Meeting scheduled*).

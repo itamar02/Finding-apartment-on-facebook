@@ -17,6 +17,36 @@ export default function CalendarAdd({ d }: { d: Detail }) {
     api.calendarStatus().then((s) => setReady(s.signed_in)).catch(() => setReady(false));
   }, []);
 
+  /** No setup needed: open Google Calendar's own "new event" page, filled in; the user taps Save there. */
+  function openInGoogle() {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const start = new Date(`${date}T${time}:00`);
+    const end = new Date(start.getTime() + minutes * 60000);
+    const stamp = (x: Date) => `${x.getFullYear()}${pad(x.getMonth() + 1)}${pad(x.getDate())}T${pad(x.getHours())}${pad(x.getMinutes())}00`;
+    const price = d.price.rent ? `מחיר: ${d.price.rent.toLocaleString("he-IL")} ₪` : null;
+    const details = [
+      d.author ? `מפרסם/ת: ${d.author}` : null,
+      d.contact.phones.length ? `טלפון: ${d.contact.phones.join(", ")}` : null,
+      price,
+      `מודעה: ${d.url}`,
+      ...d.notes.map((n) => `הערה: ${n.body}`),
+    ]
+      .filter(Boolean)
+      .join("\n");
+    const q = new URLSearchParams({
+      action: "TEMPLATE",
+      text: `צפייה בדירה${address ? `: ${address}` : ""}`,
+      dates: `${stamp(start)}/${stamp(end)}`,
+      ctz: "Asia/Jerusalem",
+      location: address,
+      details,
+    });
+    window.open(`https://calendar.google.com/calendar/render?${q.toString()}`, "_blank", "noopener");
+    app.statusChanged(d.post_id, { status: "meeting_scheduled", note: `${date} ${time}${address ? `, ${address}` : ""}`, source: "human", updated_at: new Date().toISOString() });
+    api.setStatus(d.post_id, "meeting_scheduled", `${date} ${time}${address ? `, ${address}` : ""}`).catch(app.fail);
+    app.toast({ text: "נפתח ביומן גוגל: לחץ שם על שמירה" });
+  }
+
   async function add() {
     if (!confirm(`להוסיף ליומן גוגל?\n${date} ${time}\n${address || "ללא כתובת"}`)) return;
     setBusy(true);
@@ -47,9 +77,8 @@ export default function CalendarAdd({ d }: { d: Detail }) {
       ) : (
         <div className="form">
           {ready === false && (
-            <p className="small warning">
-              יומן גוגל עוד לא מחובר. במחשב: שמרו את קובץ ה-OAuth בתיקייה <code>secrets</code> והריצו <code dir="ltr">python app_server.py --google-login</code>{" "}
-              (ההוראות ב-README).
+            <p className="small muted">
+              בלי חיבור מיוחד: הכפתור הראשון פותח את יומן גוגל שלך במילוי מראש, ואתה רק לוחץ שם על שמירה. החיבור האוטומטי (הכפתור השני) דורש הגדרה חד־פעמית במחשב, ראו README.
             </p>
           )}
           <div className="row">
@@ -62,9 +91,14 @@ export default function CalendarAdd({ d }: { d: Detail }) {
           </div>
           <input dir="auto" placeholder="כתובת" value={address} onChange={(e) => setAddress(e.target.value)} />
           <p className="muted small">האירוע כולל את הכתובת, הטלפון, הקישור למודעה וההערות שלך. הסטטוס יהפוך ל״נקבעה פגישה״.</p>
-          <button className="btn primary" disabled={busy || !date || !time || ready === false} onClick={add}>
-            הוסף ליומן
-          </button>
+          <div className="row">
+            <button className="btn primary" disabled={!date || !time} onClick={openInGoogle}>
+              פתח ביומן גוגל (בלי הגדרות)
+            </button>
+            <button className="btn" disabled={busy || !date || !time || ready === false} onClick={add} title={ready === false ? "דורש חיבור חד־פעמי" : undefined}>
+              הוסף אוטומטית
+            </button>
+          </div>
         </div>
       )}
     </details>
