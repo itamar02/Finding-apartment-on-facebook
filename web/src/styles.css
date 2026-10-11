@@ -1051,3 +1051,49 @@ button.badge {
   border-color: var(--reject);
   color: var(--reject);
 }
+
+/* --- location and price lines --- */
+
+.keylines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 10px 0 6px;
+  font-size: 1.05rem;
+}
+
+.keyline {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.keyline .key {
+  font-weight: 700;
+  flex: none;
+}
+
+.keyline input {
+  margin-bottom: 6px;
+}
+
+.keyhints {
+  margin-inline-start: 4.2em;
+}
+
+.tag.mine {
+  margin-inline-start: 6px;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.small-icon {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  font-size: 0.9rem;
+}
+
+.tag.mine {
+  white-space: nowrap;
+}

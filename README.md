@@ -402,7 +402,19 @@ In **Settings**:
   scheduled*. The app never connects to WhatsApp itself and uses no unofficial WhatsApp
   library. Set *My name in WhatsApp* in Settings so the AI can tell your messages apart.
 
+### Location and price at the top of every listing
+
+Each listing starts with **Location** (street, neighborhood, city as precisely as the post allows,
+with "near ..." details under it) and **Price** (with the total including known extra costs). If you
+learn a more exact place, tap the ✏️ next to the location and type it: it is shown instead of the
+AI's reading (marked "edited by hand"), used by the area filter and as the address of calendar
+events, and "back to the post" restores the original.
+
 ### Google Calendar
+
+Two ways in, both only on your tap: a viewing proposed from a shared WhatsApp chat (see above), or
+**📅 Add to Google Calendar** on any listing's page (date, time, length, address; one event, and the
+status becomes *Meeting scheduled*).
 
 Once, on the PC:
 

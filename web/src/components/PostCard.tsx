@@ -4,6 +4,7 @@ import { useApp } from "../App";
 import { age, DECISION_LABEL, factChips, isApproved, verdictOf, VERDICT_ONLY } from "../format";
 import StatusPicker, { StatusChip, useStatusActions } from "./StatusPicker";
 import Gallery from "./Gallery";
+import KeyLines from "./KeyLines";
 import { money } from "../format";
 import type { PricePoint } from "../api";
 
@@ -69,6 +70,8 @@ export default function PostCard({ card }: { card: Card }) {
           {card.group_name} · {age(card.posted_at ?? card.first_seen_at)}
         </span>
       </div>
+
+      <KeyLines card={card} />
 
       {chips.length > 0 && (
         <div className="facts">

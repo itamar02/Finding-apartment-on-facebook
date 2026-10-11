@@ -72,6 +72,18 @@ class JobIn(BaseModel):
     job: str = "all"
 
 
+class LocationIn(BaseModel):
+    location: Optional[str] = None     # None / empty = back to what the AI read
+
+
+class CalendarIn(BaseModel):
+    date: str
+    time: str
+    address: Optional[str] = None
+    minutes: int = 45
+    notes: Optional[str] = None
+
+
 class SnoozeIn(BaseModel):
     hours: float = 24
 
@@ -245,6 +257,30 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
         except statuses.StatusError as e:
             raise HTTPException(400, str(e))
         return {"status": statuses.current(db, uid, post_id)}
+
+    @app.put("/api/posts/{post_id}/location")
+    def put_location(post_id: str, body: LocationIn, db=Depends(get_db)):
+        """My own, more precise location for a listing (shown instead of the AI's reading)."""
+        if not db.execute("SELECT 1 FROM posts WHERE post_id = ?", (post_id,)).fetchone():
+            raise HTTPException(404, "unknown post")
+        text = (body.location or "").strip()
+        with db:
+            if text:
+                db.execute("INSERT OR REPLACE INTO post_location (post_id, user_id, location, updated_at)"
+                           " VALUES (?,?,?,?)", (post_id, uid, text, statuses.now_iso()))
+            else:
+                db.execute("DELETE FROM post_location WHERE post_id = ? AND user_id = ?", (post_id, uid))
+        card = feed.post_detail(db, cfg, uid, post_id)
+        return {"location": card["location"]}
+
+    @app.post("/api/posts/{post_id}/calendar")
+    def add_to_calendar(post_id: str, body: CalendarIn, db=Depends(get_db)):
+        """Add a viewing I arranged to Google Calendar. Only called from the Confirm button."""
+        try:
+            return meetings.schedule_post(db, cfg, uid, post_id, body.date, body.time, body.address,
+                                          body.minutes, body.notes)
+        except (meetings.MeetingError, gcal.CalendarError) as e:
+            raise HTTPException(400, str(e))
 
     @app.post("/api/posts/{post_id}/contacted")
     def contacted(post_id: str, db=Depends(get_db)):
@@ -624,6 +660,10 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
             return _propose(db, chat_id)
         except meetings.MeetingError as e:
             raise HTTPException(400, str(e))
+
+    @app.get("/api/calendar")
+    def calendar_status():
+        return gcal.status()
 
     @app.get("/api/meetings")
     def list_meetings(db=Depends(get_db)):

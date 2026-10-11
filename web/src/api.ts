@@ -68,6 +68,7 @@ export interface Card {
   };
   ai: { decision: Decision; reason: string | null; rule: string | null; decided_by: string | null } | null;
   facts: Facts | null;
+  location: { text: string | null; hints: string[]; mine: boolean; ai_text: string | null };
   partial_facts: boolean;
   status: MyStatus | null;
   notes_count: number;
@@ -397,6 +398,11 @@ export const api = {
   ai: () => call<AiState>("/api/ai"),
   saveAi: (v: Pick<AiState, "ai_providers" | "ai_stages" | "anthropic_limits">) => call<AiState>("/api/ai", send("PUT", v)),
   saveAiKey: (id: string, key: string) => call(`/api/ai/keys/${encodeURIComponent(id)}`, send("PUT", { key })),
+  setLocation: (id: string, location: string | null) =>
+    call<{ location: Card["location"] }>(`/api/posts/${id}/location`, send("PUT", { location })),
+  addToCalendar: (id: string, v: { date: string; time: string; address: string | null; minutes: number; notes: string | null }) =>
+    call<{ event_link: string | null; post_id: string }>(`/api/posts/${id}/calendar`, send("POST", v)),
+  calendarStatus: () => call<{ client_file: boolean; signed_in: boolean }>("/api/calendar"),
   visit: (id: string) => call<Visit>(`/api/posts/${id}/visit`),
   saveVisit: (id: string, v: { rating: number | null; notes: string | null; checks: { item_id: number; state: string | null; note: string | null }[] }) =>
     call<Visit>(`/api/posts/${id}/visit`, send("PUT", v)),

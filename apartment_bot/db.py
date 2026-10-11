@@ -307,6 +307,16 @@ MIGRATIONS = [
         decided_at  TEXT
     );
     """,
+    # 8 -> 9: the location of a listing as I corrected it (shown instead of the AI's reading).
+    """
+    CREATE TABLE post_location (
+        post_id    TEXT NOT NULL,
+        user_id    TEXT NOT NULL,
+        location   TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (post_id, user_id)
+    );
+    """,
 ]
 
 # A post's current text: its latest version if it was edited, else the text first seen.

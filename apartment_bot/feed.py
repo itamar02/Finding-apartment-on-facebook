@@ -23,8 +23,10 @@ SELECT p.post_id, p.group_id, p.author, p.author_id, p.posted_at, {text} AS text
        (SELECT count(*) FROM post_versions v WHERE v.post_id = p.post_id AND v.kind = 'edit') AS edits,
        a.final_decision, a.final_reason, a.final_rule, a.decided_by, a.facts_json, a.analyzed_at,
        s.status, s.note AS status_note, s.source AS status_source, s.updated_at AS status_updated_at,
-       (SELECT count(*) FROM post_notes n WHERE n.post_id = p.post_id AND n.user_id = :user) AS notes_count
+       (SELECT count(*) FROM post_notes n WHERE n.post_id = p.post_id AND n.user_id = :user) AS notes_count,
+       l.location AS my_location
 FROM posts p
+LEFT JOIN post_location l ON l.post_id = p.post_id AND l.user_id = :user
 LEFT JOIN post_analyses a ON a.id = (
     SELECT max(b.id) FROM post_analyses b
     WHERE b.post_id = p.post_id AND b.user_id = :user AND b.status = 'ok')
@@ -85,7 +87,7 @@ def query_posts(db, cfg, user_id, *, decisions=None, statuses_=None, exclude_sta
             continue
         if price_max is not None and (rent is None or rent > price_max):
             continue
-        if area and not _matches_area(facts, area):
+        if area and not _matches_area(facts, area, r["my_location"]):
             continue
         contact = contact_info(r)
         if has_phone is not None and bool(contact["phones"] or contact["whatsapp"]) != has_phone:
@@ -106,10 +108,25 @@ def query_posts(db, cfg, user_id, *, decisions=None, statuses_=None, exclude_sta
     return {"total": len(cards), "items": page}
 
 
-def _matches_area(facts, area):
-    if not facts:
+def location_info(facts, my_location=None):
+    """The place of a listing, as precise as the post allows: {"text", "hints", "mine", "ai_text"}.
+
+    text: street, neighborhood, city (what the AI read) - or the location I typed, which wins.
+    hints: "near ..." details from the post, shown under it. ai_text is kept so I can switch back.
+    """
+    facts = facts or {}
+    parts = [facts.get(k) for k in ("street", "neighborhood", "city")]
+    ai_text = ", ".join(p for p in parts if p) or facts.get("location_summary_en") or None
+    hints = [h for h in (facts.get("location_hints") or []) if h]
+    return {"text": my_location or ai_text, "hints": hints[:3], "mine": bool(my_location), "ai_text": ai_text}
+
+
+def _matches_area(facts, area, my_location=None):
+    if not facts and not my_location:
         return False
+    facts = facts or {}
     hay = " ".join(str(facts.get(k) or "") for k in ("city", "neighborhood", "street", "location_summary_en"))
+    hay += " " + (my_location or "")
     hay += " " + " ".join(facts.get("location_hints") or [])
     return area.strip().lower() in hay.lower()
 
@@ -133,6 +150,7 @@ def _card(r, facts, contact, names, template):
             "decision": r["final_decision"], "reason": r["final_reason"], "rule": r["final_rule"],
             "decided_by": r["decided_by"], "analyzed_at": r["analyzed_at"]},
         "facts": {k: facts.get(k) for k in CARD_FACTS} if facts else None,
+        "location": location_info(facts, r["my_location"]),
         "partial_facts": bool(facts and facts.get("_partial")),
         "status": None if not r["status"] else {
             "status": r["status"], "note": r["status_note"], "source": r["status_source"],

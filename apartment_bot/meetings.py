@@ -160,25 +160,27 @@ def propose(db, cfg, user_id, chat_id, router, today=None):
             "evidence": json.loads(row["evidence"])}
 
 
-def confirm(db, cfg, user_id, proposal_id, date, time, address=None, minutes=45, notes=None,
-            create=gcal.create_event):
-    """Create the calendar event for a proposal I confirmed (details may be corrected first)."""
-    p = db.execute("SELECT * FROM meeting_proposals WHERE id = ?", (proposal_id,)).fetchone()
-    if not p or p["status"] != "proposed":
-        raise MeetingError("this proposal can't be confirmed (unknown, already confirmed or discarded)")
-    if not p["post_id"]:
-        raise MeetingError("link the chat to a listing first")
+def schedule_post(db, cfg, user_id, post_id, date, time, address=None, minutes=45, notes=None, proposal_id=None,
+                  create=None):
+    """Create ONE calendar event for a viewing I confirmed, and set the status to Meeting scheduled.
+
+    Used by both ways in: a confirmed chat proposal and the "add to calendar" button on a listing.
+    """
     start = gcal.parse_local(date, time)
     post = db.execute(f"SELECT p.post_id, p.url, p.author, {EFFECTIVE_TEXT_SQL} AS text FROM posts p"
-                      " WHERE p.post_id = ?", (p["post_id"],)).fetchone()
+                      " WHERE p.post_id = ?", (post_id,)).fetchone()
+    if not post:
+        raise MeetingError("unknown post")
     facts = db.execute("SELECT facts_json FROM post_analyses WHERE post_id = ? AND user_id = ? AND status = 'ok'"
-                       " ORDER BY id DESC LIMIT 1", (p["post_id"], user_id)).fetchone()
+                       " ORDER BY id DESC LIMIT 1", (post_id, user_id)).fetchone()
     facts = json.loads(facts[0]) if facts and facts[0] else {}
-    place = address or p["address"] or ", ".join(
+    mine = db.execute("SELECT location FROM post_location WHERE post_id = ? AND user_id = ?",
+                      (post_id, user_id)).fetchone()
+    place = address or (mine[0] if mine else None) or ", ".join(
         x for x in (facts.get("street"), facts.get("neighborhood"), facts.get("city")) if x)
     phones = phones_in_text(post["text"])
     my_notes = [r[0] for r in db.execute("SELECT body FROM post_notes WHERE post_id = ? AND user_id = ? ORDER BY id",
-                                         (p["post_id"], user_id))]
+                                         (post_id, user_id))]
     description = "\n".join(filter(None, [
         f"מפרסם/ת: {post['author']}" if post["author"] else None,
         f"טלפון: {', '.join(phones)}" if phones else None,
@@ -188,13 +190,26 @@ def confirm(db, cfg, user_id, proposal_id, date, time, address=None, minutes=45,
         *(f"הערה: {n}" for n in my_notes),
     ]))
     summary = "צפייה בדירה" + (f": {place}" if place else "")
-    event_id, link = create(gcal.build_event(summary, start, minutes, place, description))
-    with db:
-        db.execute("UPDATE meeting_proposals SET status = 'confirmed', date = ?, time = ?, address = ?, event_id = ?,"
-                   " event_link = ? WHERE id = ?", (date, time, place or None, event_id, link, proposal_id))
+    event_id, link = (create or gcal.create_event)(gcal.build_event(summary, start, minutes, place, description))
+    if proposal_id is not None:
+        with db:
+            db.execute("UPDATE meeting_proposals SET status = 'confirmed', date = ?, time = ?, address = ?, event_id = ?,"
+                       " event_link = ? WHERE id = ?", (date, time, place or None, event_id, link, proposal_id))
     note = f"{date} {time}" + (f", {place}" if place else "")
-    statuses.set_status(db, user_id, p["post_id"], "meeting_scheduled", note, "human")
-    return {"event_id": event_id, "event_link": link, "post_id": p["post_id"]}
+    statuses.set_status(db, user_id, post_id, "meeting_scheduled", note, "human")
+    return {"event_id": event_id, "event_link": link, "post_id": post_id}
+
+
+def confirm(db, cfg, user_id, proposal_id, date, time, address=None, minutes=45, notes=None,
+            create=None):
+    """Create the calendar event for a proposal I confirmed (details may be corrected first)."""
+    p = db.execute("SELECT * FROM meeting_proposals WHERE id = ?", (proposal_id,)).fetchone()
+    if not p or p["status"] != "proposed":
+        raise MeetingError("this proposal can't be confirmed (unknown, already confirmed or discarded)")
+    if not p["post_id"]:
+        raise MeetingError("link the chat to a listing first")
+    return schedule_post(db, cfg, user_id, p["post_id"], date, time, address or p["address"], minutes, notes,
+                         proposal_id=proposal_id, create=create)
 
 
 def discard(db, proposal_id):

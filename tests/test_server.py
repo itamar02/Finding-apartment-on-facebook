@@ -142,3 +142,28 @@ def test_listings_with_my_status_stay_whatever_the_ai_said(client):
     assert ids("decision=PASS&with_status=true") == ["1001", "1003"]                     # an open status keeps it
     client.put("/api/posts/1003/status", json={"status": "not_relevant"}, headers=W)
     assert ids("decision=PASS&with_status=true") == ["1001"]                             # a closed one doesn't
+
+
+def test_my_location_replaces_the_ai_reading_and_can_be_cleared(client):
+    card = lambda: client.get("/api/posts?decision=PASS").json()["items"][0]
+    assert card()["location"]["text"] == "Florentin, Tel Aviv" and not card()["location"]["mine"]
+    r = client.put("/api/posts/1001/location", json={"location": "הרצל 10, פלורנטין"}, headers=W).json()
+    assert r["location"] == {**r["location"], "text": "הרצל 10, פלורנטין", "mine": True, "ai_text": "Florentin, Tel Aviv"}
+    assert client.get("/api/posts?area=%D7%94%D7%A8%D7%A6%D7%9C").json()["total"] == 1       # the area filter sees it
+    r = client.put("/api/posts/1001/location", json={"location": "  "}, headers=W).json()
+    assert r["location"]["text"] == "Florentin, Tel Aviv" and not r["location"]["mine"]
+    assert client.put("/api/posts/9999/location", json={"location": "x"}, headers=W).status_code == 404
+
+
+def test_add_to_calendar_creates_one_event_and_sets_the_status(client, monkeypatch):
+    from apartment_bot import gcal
+    made = []
+    monkeypatch.setattr(gcal, "create_event", lambda ev, session=None: (made.append(ev), ("e1", "https://cal/e1"))[1])
+    client.put("/api/posts/1001/location", json={"location": "הרצל 10"}, headers=W)
+    r = client.post("/api/posts/1001/calendar", json={"date": "2026-10-20", "time": "18:30", "minutes": 30}, headers=W)
+    assert r.status_code == 200 and r.json()["event_link"] == "https://cal/e1"
+    assert len(made) == 1 and made[0]["location"] == "הרצל 10"                  # my corrected location is the address
+    assert made[0]["start"]["dateTime"] == "2026-10-20T18:30:00" and made[0]["end"]["dateTime"] == "2026-10-20T19:00:00"
+    assert client.get("/api/posts?status=meeting_scheduled").json()["total"] == 1
+    assert client.post("/api/posts/1001/calendar", json={"date": "tomorrow", "time": "18:30"}, headers=W).status_code == 400
+    assert len(made) == 1                                                       # a bad date creates nothing

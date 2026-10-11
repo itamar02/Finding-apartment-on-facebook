@@ -80,13 +80,6 @@ export function factChips(c: Card): string[] {
   const f = c.facts;
   if (!f) return [];
   const chips: string[] = [];
-  const rent = money(f.rent_ils);
-  if (rent) {
-    const total = f.total_monthly_ils_known && f.total_monthly_ils_known !== f.rent_ils ? money(f.total_monthly_ils_known) : null;
-    chips.push(total ? `${rent} (סה״כ ${total})` : rent);
-  }
-  const a = area(f);
-  if (a) chips.push(a);
   if (f.rooms) chips.push(`${f.rooms} חד׳`);
   if (f.listing_type && f.listing_type !== "unknown") chips.push(TYPE_LABEL[f.listing_type] ?? f.listing_type);
   if (f.move_in_date) chips.push(`כניסה: ${f.move_in_date}`);
