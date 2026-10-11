@@ -160,6 +160,21 @@ def propose(db, cfg, user_id, chat_id, router, today=None):
             "evidence": json.loads(row["evidence"])}
 
 
+def set_meeting(db, user_id, post_id, at, address=None):
+    """Remember when the viewing is (shown on the listing). at: local "YYYY-MM-DDTHH:MM", or None to clear."""
+    if at is None:
+        with db:
+            db.execute("DELETE FROM post_meeting WHERE post_id = ? AND user_id = ?", (post_id, user_id))
+        return
+    try:
+        datetime.strptime(at, "%Y-%m-%dT%H:%M")
+    except ValueError:
+        raise MeetingError("the meeting time must be YYYY-MM-DDTHH:MM")
+    with db:
+        db.execute("INSERT OR REPLACE INTO post_meeting (post_id, user_id, meeting_at, address, updated_at)"
+                   " VALUES (?,?,?,?,?)", (post_id, user_id, at, address, statuses.now_iso()))
+
+
 def schedule_post(db, cfg, user_id, post_id, date, time, address=None, minutes=45, notes=None, proposal_id=None,
                   create=None):
     """Create ONE calendar event for a viewing I confirmed, and set the status to Meeting scheduled.
@@ -201,6 +216,7 @@ def schedule_post(db, cfg, user_id, post_id, date, time, address=None, minutes=4
             db.execute("UPDATE meeting_proposals SET status = 'confirmed', date = ?, time = ?, address = ?, event_id = ?,"
                        " event_link = ? WHERE id = ?", (date, time, place or None, event_id, link, proposal_id))
     note = f"{date} {time}" + (f", {place}" if place else "")
+    set_meeting(db, user_id, post_id, f"{date}T{time}", place or None)
     statuses.set_status(db, user_id, post_id, "meeting_scheduled", note, "human")
     return {"event_id": event_id, "event_link": link, "post_id": post_id}
 

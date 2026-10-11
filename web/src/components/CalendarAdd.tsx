@@ -3,7 +3,7 @@ import { api, Detail } from "../api";
 import { useApp } from "../App";
 
 /** Add a viewing I arranged to Google Calendar: one event, only when I tap the button. */
-export default function CalendarAdd({ d }: { d: Detail }) {
+export default function CalendarAdd({ d, onChanged }: { d: Detail; onChanged?: () => void }) {
   const app = useApp();
   const [ready, setReady] = useState<boolean | null>(null);
   const [date, setDate] = useState("");
@@ -42,8 +42,13 @@ export default function CalendarAdd({ d }: { d: Detail }) {
       details,
     });
     window.open(`https://calendar.google.com/calendar/render?${q.toString()}`, "_blank", "noopener");
-    app.statusChanged(d.post_id, { status: "meeting_scheduled", note: `${date} ${time}${address ? `, ${address}` : ""}`, source: "human", updated_at: new Date().toISOString() });
-    api.setStatus(d.post_id, "meeting_scheduled", `${date} ${time}${address ? `, ${address}` : ""}`).catch(app.fail);
+    api
+      .setMeeting(d.post_id, `${date}T${time}`, address || null)
+      .then((r) => {
+        if (r.status) app.statusChanged(d.post_id, r.status);
+        onChanged?.();
+      })
+      .catch(app.fail);
     app.toast({ text: "נפתח ביומן גוגל: לחץ שם על שמירה" });
   }
 
@@ -53,6 +58,7 @@ export default function CalendarAdd({ d }: { d: Detail }) {
     try {
       const r = await api.addToCalendar(d.post_id, { date, time, address: address || null, minutes, notes: null });
       setDone(r.event_link ?? "");
+      onChanged?.();
       app.statusChanged(d.post_id, { status: "meeting_scheduled", note: `${date} ${time}${address ? `, ${address}` : ""}`, source: "human", updated_at: new Date().toISOString() });
       app.toast({ text: "נוסף ליומן והסטטוס עודכן" });
     } catch (e) {

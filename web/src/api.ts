@@ -71,6 +71,7 @@ export interface Card {
   location: { text: string | null; hints: string[]; mine: boolean; ai_text: string | null };
   price: { rent: number | null; total: number | null; mine: boolean; ai_rent: number | null };
   bills: Bills;
+  meeting: { at: string; address: string | null } | null;
   partial_facts: boolean;
   status: MyStatus | null;
   notes_count: number;
@@ -409,6 +410,8 @@ export const api = {
   saveAiKey: (id: string, key: string) => call(`/api/ai/keys/${encodeURIComponent(id)}`, send("PUT", { key })),
   setLocation: (id: string, location: string | null) =>
     call<{ location: Card["location"] }>(`/api/posts/${id}/location`, send("PUT", { location })),
+  setMeeting: (id: string, at: string | null, address: string | null) =>
+    call<{ meeting: Card["meeting"]; status: MyStatus | null }>(`/api/posts/${id}/meeting`, send("PUT", { at, address })),
   setPrice: (id: string, rent: number | null, bills: "included" | "excluded" | null) =>
     call<{ price: Card["price"]; bills: Bills }>(`/api/posts/${id}/price`, send("PUT", { rent, bills })),
   addToCalendar: (id: string, v: { date: string; time: string; address: string | null; minutes: number; notes: string | null }) =>

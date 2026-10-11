@@ -1125,3 +1125,26 @@ button.badge {
   background: #fb923c;
   border-color: #ea580c;
 }
+
+.meeting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 10px 0 2px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border-inline-start: 4px solid var(--pass);
+}
+
+.meeting.past {
+  border-inline-start-color: var(--muted);
+  opacity: 0.8;
+}
+
+.meeting.editing {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}

@@ -76,6 +76,11 @@ class LocationIn(BaseModel):
     location: Optional[str] = None     # None / empty = back to what the AI read
 
 
+class MeetingIn(BaseModel):
+    at: Optional[str] = None           # local "YYYY-MM-DDTHH:MM"; None clears it
+    address: Optional[str] = None
+
+
 class PriceIn(BaseModel):
     rent: Optional[int] = None         # None / 0 = back to what the AI read
     bills: Optional[str] = None        # included | excluded; None = back to what the AI read
@@ -277,6 +282,23 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
                 db.execute("DELETE FROM post_location WHERE post_id = ? AND user_id = ?", (post_id, uid))
         card = feed.post_detail(db, cfg, uid, post_id)
         return {"location": card["location"]}
+
+    @app.put("/api/posts/{post_id}/meeting")
+    def put_meeting(post_id: str, body: MeetingIn, db=Depends(get_db)):
+        """When the viewing is. Setting a time also moves the listing to 'meeting scheduled' unless it is
+        already further along (visited, top candidate). Nothing is added to any calendar."""
+        if not db.execute("SELECT 1 FROM posts WHERE post_id = ?", (post_id,)).fetchone():
+            raise HTTPException(404, "unknown post")
+        try:
+            meetings.set_meeting(db, uid, post_id, body.at, (body.address or "").strip() or None)
+        except meetings.MeetingError as e:
+            raise HTTPException(400, str(e))
+        if body.at:
+            cur = statuses.current(db, uid, post_id)
+            if not cur or cur["status"] not in ("meeting_scheduled", "visited", "top_candidate"):
+                statuses.set_status(db, uid, post_id, "meeting_scheduled", body.at.replace("T", " "), "human")
+        card = feed.post_detail(db, cfg, uid, post_id)
+        return {"meeting": card["meeting"], "status": card["status"]}
 
     @app.put("/api/posts/{post_id}/price")
     def put_price(post_id: str, body: PriceIn, db=Depends(get_db)):

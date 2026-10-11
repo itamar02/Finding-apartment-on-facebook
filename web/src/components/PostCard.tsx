@@ -5,6 +5,7 @@ import { age, DECISION_LABEL, factChips, isApproved, verdictOf, VERDICT_ONLY } f
 import StatusPicker, { StatusChip, useStatusActions } from "./StatusPicker";
 import Gallery from "./Gallery";
 import KeyLines from "./KeyLines";
+import MeetingLine from "./MeetingLine";
 import { money } from "../format";
 import type { PricePoint } from "../api";
 
@@ -46,6 +47,7 @@ export default function PostCard({ card }: { card: Card }) {
   const { change } = useStatusActions();
   const [expanded, setExpanded] = useState(false);
   const [picking, setPicking] = useState(false);
+  const [askMeeting, setAskMeeting] = useState(false); // right after choosing "meeting scheduled": ask when
   const decision = card.ai?.decision ?? "PENDING";
   const mine = card.status?.status;
   const liked = isApproved(mine);
@@ -72,6 +74,7 @@ export default function PostCard({ card }: { card: Card }) {
         </span>
       </div>
 
+      <MeetingLine card={card} startEditing={askMeeting} onDone={() => setAskMeeting(false)} />
       <KeyLines card={card} />
 
       {chips.length > 0 && (
@@ -148,6 +151,7 @@ export default function PostCard({ card }: { card: Card }) {
           onPick={(s, note) => {
             setPicking(false);
             change(card.post_id, s, note);
+            if (s === "meeting_scheduled" && !card.meeting) setAskMeeting(true);
           }}
         />
       )}

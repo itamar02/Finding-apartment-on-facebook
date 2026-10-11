@@ -403,6 +403,15 @@ In **Settings**:
   scheduled*. The app never connects to WhatsApp itself and uses no unofficial WhatsApp
   library. Set *My name in WhatsApp* in Settings so the AI can tell your messages apart.
 
+### The meeting time on the listing
+
+A listing at *Meeting scheduled* shows **when** right on its card, without opening the details:
+"📅 Meeting: Tuesday, 20.10 · 18:30 (in 9 days) · address", with a ✏️ to change it. Choosing
+*Meeting scheduled* asks for the date and time straight away (the address is optional); the same
+time is filled in by the calendar buttons on the listing's page. Setting a time only records it
+and moves the listing to *Meeting scheduled* (unless it is already visited or a top candidate);
+adding it to a calendar is a separate button.
+
 ### Location and price at the top of every listing
 
 Each listing starts with **Location** (street, neighborhood, city as precisely as the post allows,

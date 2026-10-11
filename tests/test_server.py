@@ -202,3 +202,17 @@ def test_bills_included_or_not_from_the_post_and_by_hand(client):
     assert client.put("/api/posts/1001/price", json={"rent": 4800, "bills": "maybe"}, headers=W).status_code == 400
     r = client.put("/api/posts/1001/price", json={"rent": None, "bills": None}, headers=W).json()
     assert r["bills"]["state"] == "unknown" and not r["bills"]["mine"]
+
+
+def test_meeting_time_is_stored_shown_and_moves_the_status(client):
+    get = lambda: [c for c in client.get("/api/posts?decision=PASS").json()["items"] if c["post_id"] == "1001"][0]
+    assert get()["meeting"] is None
+    r = client.put("/api/posts/1001/meeting", json={"at": "2026-10-20T18:30", "address": "הרצל 10"}, headers=W).json()
+    assert r["meeting"] == {"at": "2026-10-20T18:30", "address": "הרצל 10"}
+    assert r["status"]["status"] == "meeting_scheduled" and r["status"]["note"] == "2026-10-20 18:30"
+    assert get()["meeting"]["at"] == "2026-10-20T18:30"
+    client.put("/api/posts/1001/status", json={"status": "visited"}, headers=W)
+    client.put("/api/posts/1001/meeting", json={"at": "2026-10-21T10:00"}, headers=W)       # later step is not pulled back
+    assert get()["status"]["status"] == "visited" and get()["meeting"]["at"] == "2026-10-21T10:00"
+    assert client.put("/api/posts/1001/meeting", json={"at": "next tuesday"}, headers=W).status_code == 400
+    assert client.put("/api/posts/1001/meeting", json={"at": None}, headers=W).json()["meeting"] is None

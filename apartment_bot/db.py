@@ -342,6 +342,17 @@ MIGRATIONS = [
     INSERT OR IGNORE INTO statuses (key, label, color, sort_order, needs_note, built_in)
         VALUES ('backup', 'גיבוי', '#fb923c', 25, 0, 1);
     """,
+    # 12 -> 13: when the viewing is (shown on the listing), set by hand or from the calendar flows.
+    """
+    CREATE TABLE post_meeting (
+        post_id    TEXT NOT NULL,
+        user_id    TEXT NOT NULL,
+        meeting_at TEXT NOT NULL,          -- local time, YYYY-MM-DDTHH:MM
+        address    TEXT,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (post_id, user_id)
+    );
+    """,
 ]
 
 # A post's current text: its latest version if it was edited, else the text first seen.

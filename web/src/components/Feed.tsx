@@ -45,6 +45,10 @@ export default function Feed({ filters, setFilters }: { filters: Filters; setFil
     () =>
       app.onStatusChange((postId, status) => {
         const closed = status?.status === "not_relevant" || status?.status === "taken";
+        if (status?.status === "meeting_scheduled") {
+          load(0); // the meeting time may have just been set: fetch the cards again
+          return;
+        }
         if (hideClosed && closed) {
           setItems((prev) => prev.filter((c) => c.post_id !== postId));
           setTotal((t) => Math.max(0, t - 1));

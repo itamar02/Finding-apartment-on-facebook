@@ -24,8 +24,10 @@ SELECT p.post_id, p.group_id, p.author, p.author_id, p.posted_at, {text} AS text
        a.final_decision, a.final_reason, a.final_rule, a.decided_by, a.facts_json, a.analyzed_at,
        s.status, s.note AS status_note, s.source AS status_source, s.updated_at AS status_updated_at,
        (SELECT count(*) FROM post_notes n WHERE n.post_id = p.post_id AND n.user_id = :user) AS notes_count,
-       l.location AS my_location, pr.rent_ils AS my_rent, pb.bills AS my_bills
+       l.location AS my_location, pr.rent_ils AS my_rent, pb.bills AS my_bills,
+       mt.meeting_at AS meeting_at, mt.address AS meeting_address
 FROM posts p
+LEFT JOIN post_meeting mt ON mt.post_id = p.post_id AND mt.user_id = :user
 LEFT JOIN post_bills pb ON pb.post_id = p.post_id AND pb.user_id = :user
 LEFT JOIN post_location l ON l.post_id = p.post_id AND l.user_id = :user
 LEFT JOIN post_price pr ON pr.post_id = p.post_id AND pr.user_id = :user
@@ -178,6 +180,7 @@ def _card(r, facts, contact, names, template):
         "facts": {k: facts.get(k) for k in CARD_FACTS} if facts else None,
         "location": location_info(facts, r["my_location"]),
         "bills": bills_info(facts, r["my_bills"]),
+        "meeting": {"at": r["meeting_at"], "address": r["meeting_address"]} if r["meeting_at"] else None,
         "price": {"rent": (facts or {}).get("rent_ils"), "total": (facts or {}).get("total_monthly_ils_known"),
                   "mine": bool((facts or {}).get("_rent_mine")), "ai_rent": (facts or {}).get(
                       "_ai_rent_ils" if (facts or {}).get("_rent_mine") else "rent_ils")},

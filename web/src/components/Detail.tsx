@@ -7,6 +7,7 @@ import { ContactButton, PriceHistory } from "./PostCard";
 import StatusPicker, { StatusChip, useStatusActions } from "./StatusPicker";
 import VisitPanel from "./VisitPanel";
 import KeyLines from "./KeyLines";
+import MeetingLine from "./MeetingLine";
 import CalendarAdd from "./CalendarAdd";
 
 const VISIT_STATUSES = ["meeting_scheduled", "visited", "top_candidate"];
@@ -142,6 +143,7 @@ export default function Detail({ postId, onClose }: { postId: string; onClose: (
           )}
           {d.status?.note && <p className="status-note">📝 {d.status.note}</p>}
 
+          <MeetingLine card={d} />
           <KeyLines card={d} />
           <div className="row">
             <ContactButton card={d} />
@@ -190,7 +192,7 @@ export default function Detail({ postId, onClose }: { postId: string; onClose: (
             </>
           )}
 
-          <CalendarAdd d={d} />
+          <CalendarAdd d={d} onChanged={reload} />
           {VISIT_STATUSES.includes(d.status?.status ?? "") && <VisitPanel postId={d.post_id} />}
 
           <h3>הערות</h3>
