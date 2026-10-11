@@ -143,7 +143,7 @@ function FilterSheet({
       <div className="filter-body">
         <h3>סינון</h3>
 
-        <label className="label">החלטת AI</label>
+        <label className="label">החלטת AI (מודעות שנתת להן סטטוס נשארות ברשימה תמיד)</label>
         <div className="pills">
           {meta.decisions.map((d: Decision) => (
             <button key={d} className={"pill" + (f.decision.includes(d) ? " on" : "")} onClick={() => setF({ ...f, decision: toggle(f.decision, d) })}>

@@ -328,6 +328,7 @@ export function filtersToQuery(f: Filters, offset: number, limit: number): strin
   const q = new URLSearchParams();
   f.decision.forEach((d) => q.append("decision", d));
   f.status.forEach((s) => q.append("status", s));
+  if (f.status.length === 0) q.append("with_status", "true"); // listings with a status of mine stay, whatever the AI said
   if (!f.show_closed && f.status.length === 0) {
     q.append("exclude_status", "not_relevant");
     q.append("exclude_status", "taken");

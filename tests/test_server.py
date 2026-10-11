@@ -132,3 +132,13 @@ def test_feed_can_hide_closed_statuses(client):
     assert ids("") == ["1001", "1002", "1003"]
     assert ids("exclude_status=not_relevant") == ["1001", "1002"]          # 1003 was marked not relevant
     assert ids("exclude_status=not_relevant&status=none") == ["1001", "1002"]
+
+
+def test_listings_with_my_status_stay_whatever_the_ai_said(client):
+    ids = lambda q: [p["post_id"] for p in client.get("/api/posts?" + q).json()["items"]]
+    assert ids("decision=PASS") == ["1001"]
+    client.put("/api/posts/1003/status", json={"status": "interested"}, headers=W)       # 1003 was rejected by the AI
+    assert ids("decision=PASS") == ["1001"]                                              # not without the option
+    assert ids("decision=PASS&with_status=true") == ["1001", "1003"]                     # an open status keeps it
+    client.put("/api/posts/1003/status", json={"status": "not_relevant"}, headers=W)
+    assert ids("decision=PASS&with_status=true") == ["1001"]                             # a closed one doesn't

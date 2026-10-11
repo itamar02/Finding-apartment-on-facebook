@@ -15,6 +15,8 @@ SORTS = ("newest", "price_asc", "price_desc")
 CARD_FACTS = ("listing_type", "rent_ils", "total_monthly_ils_known", "city", "neighborhood", "street",
               "location_summary_en", "rooms", "size_sqm", "floor", "move_in_date", "furnished", "broker")
 
+CLOSED_STATUSES = ("not_relevant", "taken")
+
 _BASE_SQL = """
 SELECT p.post_id, p.group_id, p.author, p.author_id, p.posted_at, {text} AS text, p.text_truncated, p.url,
        p.first_seen_at,
@@ -35,7 +37,7 @@ def group_names(db, cfg):
     return groups_mod.names(db, cfg)
 
 
-def query_posts(db, cfg, user_id, *, decisions=None, statuses_=None, exclude_statuses=None, groups=None, price_min=None,
+def query_posts(db, cfg, user_id, *, decisions=None, statuses_=None, exclude_statuses=None, with_status=False, groups=None, price_min=None,
                 price_max=None, area=None, since=None, until=None, include_old=False, has_phone=None,
                 status_source=None, sort="newest", offset=0, limit=30, post_ids=None):
     """Filtered, sorted cards. Returns {"total": n, "items": [card, ...]}.
@@ -67,7 +69,9 @@ def query_posts(db, cfg, user_id, *, decisions=None, statuses_=None, exclude_sta
     cards = []
     for r in rows:
         decision = r["final_decision"] or "PENDING"
-        if decisions and decision not in decisions:
+        # with_status: a listing I (or an AI chat) gave an open status stays in the list whatever the AI said.
+        keeps_status = with_status and r["status"] and r["status"] not in CLOSED_STATUSES
+        if decisions and decision not in decisions and not keeps_status:
             continue
         if statuses_ and (r["status"] or "none") not in statuses_:
             continue
