@@ -27,6 +27,9 @@ def pending_posts(db, user_id, limit=None, post_ids=None, force=False):
         sql += (" AND NOT EXISTS (SELECT 1 FROM post_analyses a WHERE a.post_id = p.post_id"
                 " AND a.user_id = ? AND a.pipeline_version = ? AND a.status = 'ok'" + newer_version + ")")
         params += [user_id, ai_filter.PIPELINE_VERSION]
+        if not post_ids:   # listings an AI chat already sorted don't need the AI bot (named post ids still do)
+            sql += AI_CHAT_COVERED
+            params.append(user_id)
     if post_ids:
         sql += f" AND p.post_id IN ({','.join('?' * len(post_ids))})"
         params += list(post_ids)
@@ -35,6 +38,11 @@ def pending_posts(db, user_id, limit=None, post_ids=None, force=False):
         sql += " LIMIT ?"
         params.append(limit)
     return db.execute(sql, params).fetchall()
+
+
+# A listing the user's AI chat already gave a status is covered: the paid analysis is skipped for it.
+AI_CHAT_COVERED = (" AND NOT EXISTS (SELECT 1 FROM post_status g WHERE g.post_id = p.post_id AND g.user_id = ?"
+                   " AND g.source = 'gpt')")
 
 
 def count_pending(db, user_id):
@@ -47,8 +55,8 @@ def count_pending(db, user_id):
         " AND NOT EXISTS (SELECT 1 FROM human_decisions h WHERE h.post_id = p.post_id AND h.user_id = ?"
         " AND h.decision = 'REJECT')"
         " AND NOT EXISTS (SELECT 1 FROM post_analyses a WHERE a.post_id = p.post_id AND a.user_id = ?"
-        " AND a.pipeline_version = ? AND a.status = 'ok'" + newer + ")",
-        (user_id, user_id, ai_filter.PIPELINE_VERSION)).fetchone()[0]
+        " AND a.pipeline_version = ? AND a.status = 'ok'" + newer + ")" + AI_CHAT_COVERED,
+        (user_id, user_id, ai_filter.PIPELINE_VERSION, user_id)).fetchone()[0]
 
 
 def _has_versions(db):

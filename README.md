@@ -340,7 +340,9 @@ it). `tailscale serve --bg` survives restarts by itself.
   the chat, paste the answer back, check the preview, and confirm. Imported statuses are
   marked "AI chat" (the feed can filter by who set a status) and never replace a status you set
   yourself unless you tick that box. An AI chat's "not relevant" is not a rejection by you, so
-  `reject.py --list` and the exports' HUMAN REJECTED section only show your own. The export
+  `reject.py --list` and the exports' HUMAN REJECTED section only show your own. A listing an AI chat has sorted is
+  not sent to the paid AI bot (it is left out of the analysis, saving its cost), and its card shows only
+  the AI chat's verdict, not a second one from the bot. The export
   holds other people's phone numbers - keep that in mind before pasting it into a service.
 
 ### Automatic scanning, notifications and reminders

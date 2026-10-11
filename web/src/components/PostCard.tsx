@@ -50,21 +50,25 @@ export default function PostCard({ card }: { card: Card }) {
   const liked = mine === "interested" || mine === "top_candidate";
   const disliked = mine === "not_relevant";
   const def = app.statusOf(mine);
+  // Sorted by an AI chat: that is the one verdict shown (the paid AI bot isn't asked about it).
+  const covered = card.status?.source === "gpt";
   const chips = factChips(card);
   const long = card.text.length > 280;
 
   return (
     <article className="card" style={def ? { borderInlineStartColor: def.color, borderInlineStartWidth: 4 } : undefined}>
       <div className="card-head">
-        <button
-          className={"badge" + (mine ? " dim" : "")}
-          style={{ background: DECISION_COLOR[decision] }}
-          title="ההחלטה של ה-AI. הקש כדי לקבוע את ההחלטה שלך"
-          onClick={() => setPicking(true)}
-        >
-          {mine ? "AI: " : ""}
-          {DECISION_LABEL[decision]} ▾
-        </button>
+        {!covered && (
+          <button
+            className={"badge" + (mine ? " dim" : "")}
+            style={{ background: DECISION_COLOR[decision] }}
+            title="ההחלטה של ה-AI. הקש כדי לקבוע את ההחלטה שלך"
+            onClick={() => setPicking(true)}
+          >
+            {mine ? "AI: " : ""}
+            {DECISION_LABEL[decision]} ▾
+          </button>
+        )}
         <StatusChip status={card.status} onClick={() => setPicking(true)} />
         {card.edited && <span className="tag">נערכה</span>}
         <span className="muted small grow-end">
@@ -82,7 +86,7 @@ export default function PostCard({ card }: { card: Card }) {
         </div>
       )}
       <PriceHistory points={card.price_history} />
-      {card.ai?.reason && (
+      {card.ai?.reason && !covered && (
         <p className="reason clamp3" dir="auto">
           {card.ai.reason}
         </p>
@@ -131,7 +135,7 @@ export default function PostCard({ card }: { card: Card }) {
 
       {picking && (
         <StatusPicker
-          aiLabel={DECISION_LABEL[decision]}
+          aiLabel={covered ? undefined : DECISION_LABEL[decision]}
           current={card.status}
           onClose={() => setPicking(false)}
           onPick={(s, note) => {

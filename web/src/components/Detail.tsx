@@ -109,6 +109,7 @@ export default function Detail({ postId, onClose }: { postId: string; onClose: (
   }
 
   const decision = d?.ai?.decision ?? "PENDING";
+  const covered = d?.status?.source === "gpt"; // sorted by an AI chat: only that verdict is shown
   const facts = d?.full_facts ?? null;
 
   return (
@@ -124,20 +125,22 @@ export default function Detail({ postId, onClose }: { postId: string; onClose: (
       ) : (
         <div className="detail">
           <div className="card-head">
-            <button
-              className={"badge" + (d.status ? " dim" : "")}
-              style={{ background: DECISION_COLOR[decision] }}
-              title="ההחלטה של ה-AI. הקש כדי לקבוע את ההחלטה שלך"
-              onClick={() => setPicking(true)}
-            >
-              {d.status ? "AI: " : ""}
-              {DECISION_LABEL[decision]} ▾
-            </button>
+            {!covered && (
+              <button
+                className={"badge" + (d.status ? " dim" : "")}
+                style={{ background: DECISION_COLOR[decision] }}
+                title="ההחלטה של ה-AI. הקש כדי לקבוע את ההחלטה שלך"
+                onClick={() => setPicking(true)}
+              >
+                {d.status ? "AI: " : ""}
+                {DECISION_LABEL[decision]} ▾
+              </button>
+            )}
             <StatusChip status={d.status} onClick={() => setPicking(true)} />
             <span className="muted small grow-end">{age(d.posted_at ?? d.first_seen_at)}</span>
           </div>
           <PriceHistory points={d.price_history} />
-          {d.ai?.reason && (
+          {d.ai?.reason && !covered && (
             <p className="reason" dir="auto">
               {d.ai.reason}
             </p>
@@ -248,7 +251,7 @@ export default function Detail({ postId, onClose }: { postId: string; onClose: (
       )}
       {picking && d && (
         <StatusPicker
-          aiLabel={DECISION_LABEL[decision]}
+          aiLabel={covered ? undefined : DECISION_LABEL[decision]}
           current={d.status}
           onClose={() => setPicking(false)}
           onPick={(s, note) => {

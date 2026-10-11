@@ -284,3 +284,13 @@ def test_count_pending(db):
     # The fixture's analyses are from an older pipeline version, so 1001, 1002 and 1004 wait;
     # 1003 was rejected by me and never needs the AI.
     assert pipeline.count_pending(db, "me") == 3
+
+
+def test_listings_sorted_by_an_ai_chat_are_not_sent_to_the_ai_bot(db):
+    before = {p["post_id"] for p in pipeline.pending_posts(db, "me")}
+    assert {"1001", "1002", "1004"} <= before and pipeline.count_pending(db, "me") == 3
+    statuses.set_status(db, "me", "1001", "interested", "נראה טוב", source="gpt")      # sorted by the AI chat
+    statuses.set_status(db, "me", "1002", "interested", None, source="human")           # my own choice: still analyzed
+    after = {p["post_id"] for p in pipeline.pending_posts(db, "me")}
+    assert after == {"1002", "1004"} and pipeline.count_pending(db, "me") == 2
+    assert [p["post_id"] for p in pipeline.pending_posts(db, "me", post_ids=["1001"])] == ["1001"]   # asked for by id
