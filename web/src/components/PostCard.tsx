@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Card } from "../api";
 import { useApp } from "../App";
-import { age, DECISION_COLOR, DECISION_LABEL, factChips } from "../format";
+import { age, DECISION_LABEL, factChips, isApproved, verdictOf, VERDICT_ONLY } from "../format";
 import StatusPicker, { StatusChip, useStatusActions } from "./StatusPicker";
 import Gallery from "./Gallery";
 import { money } from "../format";
@@ -47,29 +47,23 @@ export default function PostCard({ card }: { card: Card }) {
   const [picking, setPicking] = useState(false);
   const decision = card.ai?.decision ?? "PENDING";
   const mine = card.status?.status;
-  const liked = mine === "interested" || mine === "top_candidate";
+  const liked = isApproved(mine);
   const disliked = mine === "not_relevant";
   const def = app.statusOf(mine);
-  // Sorted by an AI chat: that is the one verdict shown (the paid AI bot isn't asked about it).
-  const covered = card.status?.source === "gpt";
+  // Pill 1: approved / rejected and by whom (the AI bot's verdict only while nobody decided).
+  // Pill 2: the process status (contacted, meeting...); plain approved / rejected live in pill 1.
+  const verdict = verdictOf(card.ai, card.status);
+  const stepStatus = card.status && !VERDICT_ONLY.has(card.status.status) ? card.status : null;
   const chips = factChips(card);
   const long = card.text.length > 280;
 
   return (
     <article className="card" style={def ? { borderInlineStartColor: def.color, borderInlineStartWidth: 4 } : undefined}>
       <div className="card-head">
-        {!covered && (
-          <button
-            className={"badge" + (mine ? " dim" : "")}
-            style={{ background: DECISION_COLOR[decision] }}
-            title="ההחלטה של ה-AI. הקש כדי לקבוע את ההחלטה שלך"
-            onClick={() => setPicking(true)}
-          >
-            {mine ? "AI: " : ""}
-            {DECISION_LABEL[decision]} ▾
-          </button>
-        )}
-        <StatusChip status={card.status} onClick={() => setPicking(true)} />
+        <button className="badge" style={{ background: verdict.color }} title="הקש כדי לקבוע את ההחלטה שלך" onClick={() => setPicking(true)}>
+          {verdict.text} ▾
+        </button>
+        <StatusChip status={stepStatus} onClick={() => setPicking(true)} />
         {card.edited && <span className="tag">נערכה</span>}
         <span className="muted small grow-end">
           {card.group_name} · {age(card.posted_at ?? card.first_seen_at)}
@@ -86,7 +80,7 @@ export default function PostCard({ card }: { card: Card }) {
         </div>
       )}
       <PriceHistory points={card.price_history} />
-      {card.ai?.reason && !covered && (
+      {card.ai?.reason && !verdict.decided && (
         <p className="reason clamp3" dir="auto">
           {card.ai.reason}
         </p>
@@ -111,7 +105,8 @@ export default function PostCard({ card }: { card: Card }) {
             className={"btn vote" + (liked ? " on-good" : "")}
             aria-label="מתאים לי"
             title="מתאים לי (הקשה נוספת מבטלת)"
-            onClick={() => change(card.post_id, liked ? null : "interested")}
+            // On a listing already further along (contacted, meeting...), 👍 must not wipe that step: open the picker.
+            onClick={() => (liked && mine !== "interested" ? setPicking(true) : change(card.post_id, liked ? null : "interested"))}
           >
             👍
           </button>
@@ -135,7 +130,7 @@ export default function PostCard({ card }: { card: Card }) {
 
       {picking && (
         <StatusPicker
-          aiLabel={covered ? undefined : DECISION_LABEL[decision]}
+          aiLabel={verdict.decided ? undefined : DECISION_LABEL[decision]}
           current={card.status}
           onClose={() => setPicking(false)}
           onPick={(s, note) => {

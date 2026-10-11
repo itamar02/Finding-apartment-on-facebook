@@ -26,6 +26,31 @@ export const TYPE_LABEL: Record<string, string> = {
 
 export const SOURCE_LABEL: Record<string, string> = { human: "אני", gpt: "צ׳אט AI", system: "מערכת" };
 
+/** Statuses that mean "I (or an AI chat) approved it" - the verdict pill shows that, not the status chip. */
+const APPROVED = new Set(["interested", "needs_details", "contacted", "awaiting_reply", "meeting_scheduled", "visited", "top_candidate"]);
+export const isApproved = (status: string | undefined) => !!status && APPROVED.has(status);
+
+/** The statuses that only say approved / rejected; every other status is a step of the process (the second pill). */
+export const VERDICT_ONLY = new Set(["interested", "not_relevant"]);
+
+export interface Verdict {
+  text: string;
+  color: string;
+  decided: boolean; // by a person or an AI chat; false = the AI bot's own verdict
+}
+
+/** Pill 1: was it approved or rejected, and by whom. Falls back to the AI bot's verdict only while nobody decided. */
+export function verdictOf(ai: { decision: Decision } | null, status: { status: string; source: string } | null): Verdict {
+  if (status) {
+    const by = SOURCE_LABEL[status.source] ?? status.source;
+    if (status.status === "not_relevant") return { text: `✗ לא רלוונטי · ${by}`, color: "var(--reject)", decided: true };
+    if (status.status === "taken") return { text: `נתפסה · ${by}`, color: "var(--muted)", decided: true };
+    if (APPROVED.has(status.status)) return { text: `✓ אושרה · ${by}`, color: "var(--pass)", decided: true };
+  }
+  const d: Decision = ai?.decision ?? "PENDING";
+  return { text: `AI: ${DECISION_LABEL[d]}`, color: DECISION_COLOR[d], decided: false };
+}
+
 export function money(n: number | null | undefined): string | null {
   return n == null ? null : `${n.toLocaleString("he-IL")} ₪`;
 }

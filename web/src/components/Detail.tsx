@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, Detail as DetailT } from "../api";
 import { useApp } from "../App";
-import { age, dateTime, DECISION_COLOR, DECISION_LABEL, money, SOURCE_LABEL, TYPE_LABEL } from "../format";
+import { age, dateTime, DECISION_LABEL, money, SOURCE_LABEL, TYPE_LABEL, verdictOf, VERDICT_ONLY } from "../format";
 import Gallery from "./Gallery";
 import { ContactButton, PriceHistory } from "./PostCard";
 import StatusPicker, { StatusChip, useStatusActions } from "./StatusPicker";
@@ -109,7 +109,8 @@ export default function Detail({ postId, onClose }: { postId: string; onClose: (
   }
 
   const decision = d?.ai?.decision ?? "PENDING";
-  const covered = d?.status?.source === "gpt"; // sorted by an AI chat: only that verdict is shown
+  const verdict = verdictOf(d?.ai ?? null, d?.status ?? null); // pill 1: approved / rejected and by whom
+  const stepStatus = d?.status && !VERDICT_ONLY.has(d.status.status) ? d.status : null; // pill 2: the process step
   const facts = d?.full_facts ?? null;
 
   return (
@@ -125,22 +126,14 @@ export default function Detail({ postId, onClose }: { postId: string; onClose: (
       ) : (
         <div className="detail">
           <div className="card-head">
-            {!covered && (
-              <button
-                className={"badge" + (d.status ? " dim" : "")}
-                style={{ background: DECISION_COLOR[decision] }}
-                title="ההחלטה של ה-AI. הקש כדי לקבוע את ההחלטה שלך"
-                onClick={() => setPicking(true)}
-              >
-                {d.status ? "AI: " : ""}
-                {DECISION_LABEL[decision]} ▾
-              </button>
-            )}
-            <StatusChip status={d.status} onClick={() => setPicking(true)} />
+            <button className="badge" style={{ background: verdict.color }} title="הקש כדי לקבוע את ההחלטה שלך" onClick={() => setPicking(true)}>
+              {verdict.text} ▾
+            </button>
+            <StatusChip status={stepStatus} onClick={() => setPicking(true)} />
             <span className="muted small grow-end">{age(d.posted_at ?? d.first_seen_at)}</span>
           </div>
           <PriceHistory points={d.price_history} />
-          {d.ai?.reason && !covered && (
+          {d.ai?.reason && !verdict.decided && (
             <p className="reason" dir="auto">
               {d.ai.reason}
             </p>
@@ -251,7 +244,7 @@ export default function Detail({ postId, onClose }: { postId: string; onClose: (
       )}
       {picking && d && (
         <StatusPicker
-          aiLabel={covered ? undefined : DECISION_LABEL[decision]}
+          aiLabel={verdict.decided ? undefined : DECISION_LABEL[decision]}
           current={d.status}
           onClose={() => setPicking(false)}
           onPick={(s, note) => {
