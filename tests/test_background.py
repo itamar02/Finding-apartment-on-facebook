@@ -294,3 +294,19 @@ def test_listings_sorted_by_an_ai_chat_are_not_sent_to_the_ai_bot(db):
     after = {p["post_id"] for p in pipeline.pending_posts(db, "me")}
     assert after == {"1002", "1004"} and pipeline.count_pending(db, "me") == 2
     assert [p["post_id"] for p in pipeline.pending_posts(db, "me", post_ids=["1001"])] == ["1001"]   # asked for by id
+
+
+def test_a_press_can_choose_how_many_posts_go_to_the_ai(db, cfg):
+    seen = []
+    sch = _job_scheduler(db, cfg, lambda args: (seen.append(args), (0, "ok"))[1])
+    assert sch.start_job("analyze", limit=1500)
+    _wait(sch)
+    assert seen[-1][-2:] == ["--limit", "1500"]                       # more than the setting's 200
+    assert sch.start_job("analyze", limit=0)
+    _wait(sch)
+    assert seen[-1][-1] == "--all"                                    # 0 = every post
+    assert sch.start_job("analyze")
+    _wait(sch)
+    assert seen[-1][-2:] == ["--limit", "200"]                        # no choice: the setting
+    with pytest.raises(ValueError):
+        sch.start_job("analyze", limit=-5)

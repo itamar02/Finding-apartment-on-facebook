@@ -32,6 +32,7 @@ class Scheduler:
         self.state = {"running": False, "stopping": False, "job": None, "step": None, "last_start": None, "last_end": None,
                       "last_result": None, "next_run": None}
         self._stop = threading.Event()
+        self._limit_override = None   # set by a button press: how many posts this run may send to the AI
         self._cancel = threading.Event()
         self._lock = threading.Lock()
         self._proc = None
@@ -57,11 +58,14 @@ class Scheduler:
 
     _force = False
 
-    def start_job(self, job="all"):
+    def start_job(self, job="all", limit=None):
         """Start one job in the background right away: "download" (Facebook only, no AI),
         "analyze" (the AI, up to analyze_limit posts) or "all". False if one is already running."""
         if job not in JOBS:
             raise ValueError(f"unknown job {job!r}")
+        if limit is not None and not 0 <= int(limit) <= 100000:
+            raise ValueError("limit must be 0 (all) to 100000")
+        self._limit_override = None if limit is None else int(limit)
         with self._lock:
             if self.state["running"]:
                 return False
@@ -151,7 +155,7 @@ class Scheduler:
                     db.close()
                 if job == "analyze" or (job == "all" and conf.get("analyze", True)):
                     self.state["step"] = "analyze"
-                    limit = int(conf.get("analyze_limit") or 0)
+                    limit = int(self._limit_override if self._limit_override is not None else conf.get("analyze_limit") or 0)
                     code, out = self.runner(["analyze_posts.py", "--user", self.user_id,
                                              *(["--limit", str(limit)] if limit > 0 else ["--all"])])
                     result.append("הופסק" if self._cancel.is_set() else (_last_line(out) or f"analyze exit {code}"))

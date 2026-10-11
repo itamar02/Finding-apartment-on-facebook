@@ -70,6 +70,7 @@ class DiscoverIn(BaseModel):
 
 class JobIn(BaseModel):
     job: str = "all"
+    limit: Optional[int] = None       # how many posts the AI may analyze in this run (0 = all); None = the setting
 
 
 class LocationIn(BaseModel):
@@ -512,7 +513,7 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
     def scheduler_run(body: JobIn = JobIn()):
         """job: download (Facebook only, no AI) | analyze (the AI, up to the limit) | all."""
         try:
-            started = scheduler.start_job(body.job)
+            started = scheduler.start_job(body.job, body.limit)
         except ValueError as e:
             raise HTTPException(400, str(e))
         if not started:

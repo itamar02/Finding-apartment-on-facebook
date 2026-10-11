@@ -31,13 +31,13 @@ export default function ScanBar({ onFinished }: { onFinished: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function start(job: "download" | "analyze" | "all") {
-    if (job !== "download") {
-      const n = Math.min(state?.unchecked ?? 0, state?.settings.analyze_limit || Infinity);
-      if (!confirm(`לנתח עד ${n.toLocaleString("he-IL")} מודעות עם AI? זה עולה כסף (בערך ${(n * 0.002).toFixed(2)}$).`)) return;
-    }
+  const [choosing, setChoosing] = useState<"analyze" | "all" | null>(null);
+  const [custom, setCustom] = useState("");
+
+  async function start(job: "download" | "analyze" | "all", limit?: number) {
+    setChoosing(null);
     try {
-      await api.runScheduler(job);
+      await api.runScheduler(job, limit);
       wasRunning.current = true;
       setState((s) => (s ? { ...s, running: true, job, step: job === "analyze" ? "analyze" : "scan" } : s));
       timer.current = window.setTimeout(refresh, 2500);
@@ -59,7 +59,6 @@ export default function ScanBar({ onFinished }: { onFinished: () => void }) {
   }
 
   if (!state) return null;
-  const limit = state.settings.analyze_limit;
 
   /** The button that started the running job turns into Stop; the others wait. */
   function jobButton(job: "download" | "analyze" | "all", label: string, disabled = false) {
@@ -72,7 +71,7 @@ export default function ScanBar({ onFinished }: { onFinished: () => void }) {
       );
     }
     return (
-      <button className="btn" disabled={state!.running || disabled} onClick={() => start(job)}>
+      <button className="btn" disabled={state!.running || disabled} onClick={() => (job === "download" ? start(job) : setChoosing(job))}>
         {label}
       </button>
     );
@@ -83,12 +82,43 @@ export default function ScanBar({ onFinished }: { onFinished: () => void }) {
       {jobButton("download", "⬇ הורד מודעות")}
       {jobButton("analyze", "🧠 נתח מודעות", state.unchecked === 0)}
       {jobButton("all", "🔄 הכל")}
+      {choosing && (
+        <div className="sheet-backdrop" onClick={() => setChoosing(null)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <h3>כמה מודעות לנתח עם AI?</h3>
+            <p className="muted small">
+              יש {state.unchecked.toLocaleString("he-IL")} מודעות שלא נבדקו. הניתוח עולה כסף (בערך 0.2 סנט למודעה), מהחדשות לישנות, ואפשר לעצור באמצע.
+              {choosing === "all" && " לפני כן תורדנה מודעות חדשות מפייסבוק."}
+            </p>
+            <div className="status-grid">
+              {[200, 500, 1000, 2000, 0].map((n) => {
+                const count = n === 0 ? state.unchecked : Math.min(n, state.unchecked);
+                return (
+                  <button key={n} className="status-option" onClick={() => start(choosing, n)}>
+                    {n === 0 ? `הכל (${state.unchecked.toLocaleString("he-IL")})` : n.toLocaleString("he-IL")}
+                    <span className="small muted">בערך ${(count * 0.002).toFixed(2)}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="row nowrap">
+              <input inputMode="numeric" placeholder="מספר אחר" value={custom} onChange={(e) => setCustom(e.target.value.replace(/\D/g, ""))} />
+              <button className="btn primary" disabled={!custom} onClick={() => start(choosing, Number(custom))}>
+                נתח
+              </button>
+            </div>
+            <button className="btn subtle" onClick={() => setChoosing(null)}>
+              ביטול
+            </button>
+          </div>
+        </div>
+      )}
       <span className="small muted grow-line">
         {state.stopping
           ? "מסיים את הפעולה הנוכחית ושומר, בלי לפגוע במסד הנתונים…"
           : state.running
             ? `${STEP[state.step ?? "scan"] ?? "רץ"}… אפשר להמשיך להשתמש באפליקציה`
-            : `${state.unchecked.toLocaleString("he-IL")} מודעות לא נבדקו · ניתוח עד ${limit || "ללא הגבלה"} בכל פעם`}
+            : `${state.unchecked.toLocaleString("he-IL")} מודעות לא נבדקו · הניתוח שואל כמה לנתח`}
         {!state.running && state.last_end && ` · אחרון ${age(state.last_end)}${state.last_result ? `: ${state.last_result}` : ""}`}
       </span>
     </div>

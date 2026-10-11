@@ -355,8 +355,8 @@ In **Settings**:
 
 - **Jobs on the feed**: three buttons at the top, each asked for on purpose: **⬇ Download posts**
   (reads the Facebook groups only - no AI, no cost), **🧠 Analyze posts** (the AI on the posts not
-  checked yet, newest first, at most the limit set below; it shows the number and an estimated
-  price and asks to confirm first) and **🔄 All** (both). While a job runs, its button turns into
+  checked yet, newest first; it asks how many - 200, 500, 1,000, 2,000, all, or a number of your own -
+  with the estimated price of each choice) and **🔄 All** (both). While a job runs, its button turns into
   **⏹ Stop**. Stop is polite: the job is asked to finish the post or group it is on, save it and
   end by itself (a stopped group is marked unfinished so the next scan reads it fully); only if it
   hasn't ended after 3 minutes is its process ended. Afterwards the database is checked and the

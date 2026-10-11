@@ -390,7 +390,8 @@ export const api = {
   startDiscovery: (score: boolean) => call("/api/groups/discover", send("POST", { score })),
   discovery: () => call<{ running: boolean; exit_code: number | null; log: string[] }>("/api/groups/discover"),
   scheduler: () => call<SchedulerState>("/api/scheduler"),
-  runScheduler: (job: "download" | "analyze" | "all" = "all") => call("/api/scheduler/run", send("POST", { job })),
+  runScheduler: (job: "download" | "analyze" | "all" = "all", limit?: number) =>
+    call("/api/scheduler/run", send("POST", { job, limit: limit ?? null })),
   stopScheduler: () => call<{ stopping: boolean }>("/api/scheduler/stop", send("POST")),
   notifications: () =>
     call<{
