@@ -409,6 +409,9 @@ with "near ..." details under it) and **Price** (with the total including known 
 learn a more exact place, tap the ✏️ next to the location and type it: it is shown instead of the
 AI's reading (marked "edited by hand"), used by the area filter and as the address of calendar
 events, and "back to the post" restores the original.
+The price has the same ✏️: type the new monthly rent when it changed (or the AI misread it); it
+replaces the AI's number on the card, in the price filter and sorting, and in calendar events, and
+the post's own figure stays visible next to it.
 
 ### Google Calendar
 

@@ -24,9 +24,10 @@ SELECT p.post_id, p.group_id, p.author, p.author_id, p.posted_at, {text} AS text
        a.final_decision, a.final_reason, a.final_rule, a.decided_by, a.facts_json, a.analyzed_at,
        s.status, s.note AS status_note, s.source AS status_source, s.updated_at AS status_updated_at,
        (SELECT count(*) FROM post_notes n WHERE n.post_id = p.post_id AND n.user_id = :user) AS notes_count,
-       l.location AS my_location
+       l.location AS my_location, pr.rent_ils AS my_rent
 FROM posts p
 LEFT JOIN post_location l ON l.post_id = p.post_id AND l.user_id = :user
+LEFT JOIN post_price pr ON pr.post_id = p.post_id AND pr.user_id = :user
 LEFT JOIN post_analyses a ON a.id = (
     SELECT max(b.id) FROM post_analyses b
     WHERE b.post_id = p.post_id AND b.user_id = :user AND b.status = 'ok')
@@ -82,6 +83,9 @@ def query_posts(db, cfg, user_id, *, decisions=None, statuses_=None, exclude_sta
         if status_source and r["status_source"] != status_source:
             continue
         facts = json.loads(r["facts_json"]) if r["facts_json"] else None
+        if r["my_rent"]:   # the price I typed replaces the AI's reading everywhere (filters, sorting, the card)
+            facts = {**(facts or {}), "_ai_rent_ils": (facts or {}).get("rent_ils"), "rent_ils": r["my_rent"],
+                     "total_monthly_ils_known": None, "_rent_mine": True}
         rent = facts.get("rent_ils") if facts else None
         if price_min is not None and (rent is None or rent < price_min):
             continue
@@ -151,6 +155,9 @@ def _card(r, facts, contact, names, template):
             "decided_by": r["decided_by"], "analyzed_at": r["analyzed_at"]},
         "facts": {k: facts.get(k) for k in CARD_FACTS} if facts else None,
         "location": location_info(facts, r["my_location"]),
+        "price": {"rent": (facts or {}).get("rent_ils"), "total": (facts or {}).get("total_monthly_ils_known"),
+                  "mine": bool((facts or {}).get("_rent_mine")), "ai_rent": (facts or {}).get(
+                      "_ai_rent_ils" if (facts or {}).get("_rent_mine") else "rent_ils")},
         "partial_facts": bool(facts and facts.get("_partial")),
         "status": None if not r["status"] else {
             "status": r["status"], "note": r["status_note"], "source": r["status_source"],

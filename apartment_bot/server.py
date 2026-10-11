@@ -76,6 +76,10 @@ class LocationIn(BaseModel):
     location: Optional[str] = None     # None / empty = back to what the AI read
 
 
+class PriceIn(BaseModel):
+    rent: Optional[int] = None         # None / 0 = back to what the AI read
+
+
 class CalendarIn(BaseModel):
     date: str
     time: str
@@ -272,6 +276,21 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
                 db.execute("DELETE FROM post_location WHERE post_id = ? AND user_id = ?", (post_id, uid))
         card = feed.post_detail(db, cfg, uid, post_id)
         return {"location": card["location"]}
+
+    @app.put("/api/posts/{post_id}/price")
+    def put_price(post_id: str, body: PriceIn, db=Depends(get_db)):
+        """The monthly rent as I corrected it (shown, filtered and sorted instead of the AI's reading)."""
+        if not db.execute("SELECT 1 FROM posts WHERE post_id = ?", (post_id,)).fetchone():
+            raise HTTPException(404, "unknown post")
+        if body.rent is not None and not 0 <= body.rent <= 1_000_000:
+            raise HTTPException(400, "not a sensible rent")
+        with db:
+            if body.rent:
+                db.execute("INSERT OR REPLACE INTO post_price (post_id, user_id, rent_ils, updated_at) VALUES (?,?,?,?)",
+                           (post_id, uid, body.rent, statuses.now_iso()))
+            else:
+                db.execute("DELETE FROM post_price WHERE post_id = ? AND user_id = ?", (post_id, uid))
+        return {"price": feed.post_detail(db, cfg, uid, post_id)["price"]}
 
     @app.post("/api/posts/{post_id}/calendar")
     def add_to_calendar(post_id: str, body: CalendarIn, db=Depends(get_db)):

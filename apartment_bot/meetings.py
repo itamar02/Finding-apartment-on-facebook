@@ -179,12 +179,14 @@ def schedule_post(db, cfg, user_id, post_id, date, time, address=None, minutes=4
     place = address or (mine[0] if mine else None) or ", ".join(
         x for x in (facts.get("street"), facts.get("neighborhood"), facts.get("city")) if x)
     phones = phones_in_text(post["text"])
+    my_rent = db.execute("SELECT rent_ils FROM post_price WHERE post_id = ? AND user_id = ?", (post_id, user_id)).fetchone()
+    rent = my_rent[0] if my_rent else facts.get("rent_ils")
     my_notes = [r[0] for r in db.execute("SELECT body FROM post_notes WHERE post_id = ? AND user_id = ? ORDER BY id",
                                          (post_id, user_id))]
     description = "\n".join(filter(None, [
         f"מפרסם/ת: {post['author']}" if post["author"] else None,
         f"טלפון: {', '.join(phones)}" if phones else None,
-        f"מחיר: {facts['rent_ils']:,} ₪" if facts.get("rent_ils") else None,
+        f"מחיר: {rent:,} ₪" if rent else None,
         f"מודעה: {post['url']}",
         notes,
         *(f"הערה: {n}" for n in my_notes),

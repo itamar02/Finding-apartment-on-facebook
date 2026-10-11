@@ -317,6 +317,16 @@ MIGRATIONS = [
         PRIMARY KEY (post_id, user_id)
     );
     """,
+    # 9 -> 10: the monthly rent as I corrected it (the post's price changed, or the AI misread it).
+    """
+    CREATE TABLE post_price (
+        post_id    TEXT NOT NULL,
+        user_id    TEXT NOT NULL,
+        rent_ils   INTEGER NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (post_id, user_id)
+    );
+    """,
 ]
 
 # A post's current text: its latest version if it was edited, else the text first seen.

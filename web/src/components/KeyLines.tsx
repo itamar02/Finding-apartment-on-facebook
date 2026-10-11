@@ -10,9 +10,22 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
 
-  const f = card.facts;
-  const rent = money(f?.rent_ils);
-  const total = f?.total_monthly_ils_known && f.total_monthly_ils_known !== f.rent_ils ? money(f.total_monthly_ils_known) : null;
+  const [price, setPrice] = useState(card.price);
+  const [editingPrice, setEditingPrice] = useState(false);
+  const [priceDraft, setPriceDraft] = useState("");
+  const rent = money(price.rent);
+  const total = !price.mine && price.total && price.total !== price.rent ? money(price.total) : null;
+
+  async function savePrice(value: number | null) {
+    try {
+      const r = await api.setPrice(card.post_id, value);
+      setPrice(r.price);
+      setEditingPrice(false);
+      app.toast({ text: value ? "המחיר עודכן" : "חזר למחיר מהמודעה" });
+    } catch (e) {
+      app.fail(e);
+    }
+  }
 
   async function save(value: string | null) {
     try {
@@ -74,7 +87,43 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
       )}
       <div className="keyline">
         <span className="key">מחיר:</span>
-        <span className="grow">{rent ? (total ? `${rent} (סה״כ ${total} עם הוצאות)` : rent) : "לא צוין"}</span>
+        {editingPrice ? (
+          <span className="grow">
+            <input autoFocus inputMode="numeric" dir="ltr" value={priceDraft} placeholder="שכירות חודשית בשקלים" onChange={(e) => setPriceDraft(e.target.value.replace(/\D/g, ""))} />
+            <span className="row">
+              <button className="btn primary" disabled={!priceDraft} onClick={() => savePrice(Number(priceDraft))}>
+                שמור
+              </button>
+              <button className="btn" onClick={() => setEditingPrice(false)}>
+                ביטול
+              </button>
+              {price.mine && (
+                <button className="btn" onClick={() => savePrice(null)}>
+                  חזור למודעה
+                </button>
+              )}
+            </span>
+          </span>
+        ) : (
+          <>
+            <span className="grow">
+              {rent ? (total ? `${rent} (סה״כ ${total} עם הוצאות)` : rent) : "לא צוין"}
+              {price.mine && <span className="tag mine">עודכן ידנית</span>}
+              {price.mine && price.ai_rent && <span className="small muted"> (במודעה: {money(price.ai_rent)})</span>}
+            </span>
+            <button
+              className="icon small-icon"
+              aria-label="עדכון מחיר"
+              title="המחיר השתנה"
+              onClick={() => {
+                setPriceDraft(price.rent ? String(price.rent) : "");
+                setEditingPrice(true);
+              }}
+            >
+              ✏️
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

@@ -167,3 +167,18 @@ def test_add_to_calendar_creates_one_event_and_sets_the_status(client, monkeypat
     assert client.get("/api/posts?status=meeting_scheduled").json()["total"] == 1
     assert client.post("/api/posts/1001/calendar", json={"date": "tomorrow", "time": "18:30"}, headers=W).status_code == 400
     assert len(made) == 1                                                       # a bad date creates nothing
+
+
+def test_my_price_replaces_the_ai_reading_in_the_card_filters_and_sorting(client):
+    get = lambda q: client.get("/api/posts?" + q).json()["items"]
+    card = [c for c in get("decision=PASS") if c["post_id"] == "1001"][0]
+    assert card["price"] == {"rent": 5000, "total": None, "mine": False, "ai_rent": 5000}
+    r = client.put("/api/posts/1001/price", json={"rent": 4500}, headers=W).json()
+    assert r["price"] == {"rent": 4500, "total": None, "mine": True, "ai_rent": 5000}
+    assert [c["post_id"] for c in get("price_min=3000&price_max=4600")] == ["1001"]       # filters use my price (4,500)
+    assert get("price_min=4800") == []                                                     # not the AI's 5,000
+    assert [c["post_id"] for c in get("sort=price_asc&decision=PASS&decision=NEEDS_REVIEW")] == ["1002", "1001"]
+    r = client.put("/api/posts/1001/price", json={"rent": None}, headers=W).json()
+    assert r["price"]["rent"] == 5000 and not r["price"]["mine"]
+    assert client.put("/api/posts/1001/price", json={"rent": 99999999}, headers=W).status_code == 400
+    assert client.put("/api/posts/9999/price", json={"rent": 3000}, headers=W).status_code == 404
