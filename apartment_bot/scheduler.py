@@ -67,7 +67,7 @@ class Scheduler:
             raise ValueError("limit must be 0 (all) to 100000")
         self._limit_override = None if limit is None else int(limit)
         with self._lock:
-            if self.state["running"]:
+            if self.state["running"] or jobs.external_job():   # incl. a job a previous server started
                 return False
             self.state.update(running=True, job=job, step=None)
         threading.Thread(target=self.run_once, kwargs={"job": job}, name=f"job-{job}", daemon=True).start()
@@ -77,7 +77,12 @@ class Scheduler:
         """Ask the running job to stop. It finishes its current post or group, saves it and exits
         by itself. Only if it hasn't ended after `grace` seconds is its process killed (SQLite undoes
         an unfinished write, so even that cannot corrupt the database)."""
-        if not self.state["running"] or self.state.get("stopping"):
+        if not self.state["running"]:
+            if jobs.external_job():      # started before this server did: ask it to stop all the same
+                jobs.request_stop()
+                return True
+            return False
+        if self.state.get("stopping"):
             return False
         self._cancel.set()
         self.state["stopping"] = True
@@ -179,6 +184,16 @@ class Scheduler:
                               next_run=(end + timedelta(minutes=self._interval())).isoformat(timespec="seconds"))
             self._proc = None
             self._log(f"{job}: " + " | ".join(result))
+
+    def view(self):
+        """The state for the app, including a job this server didn't start (e.g. before a restart)."""
+        state = dict(self.state)
+        if not state["running"]:
+            ext = jobs.external_job()
+            if ext:
+                state.update(running=True, job="download" if ext == "scan" else "analyze",
+                             step="scan" if ext == "scan" else "analyze", stopping=jobs.stop_requested())
+        return state
 
     def _integrity_note(self):
         """After a stop: check the database file and say so."""

@@ -506,7 +506,7 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
 
     @app.get("/api/scheduler")
     def scheduler_state(db=Depends(get_db)):
-        return {**scheduler.state, "settings": settings.get(db, "scheduler"),
+        return {**scheduler.view(), "settings": settings.get(db, "scheduler"),
                 "unchecked": pipeline.count_pending(db, uid)}
 
     @app.post("/api/scheduler/run")
@@ -517,7 +517,7 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
         except ValueError as e:
             raise HTTPException(400, str(e))
         if not started:
-            raise HTTPException(409, "already running")
+            raise HTTPException(409, "a scan or analysis is already running")
         return {"ok": True}
 
     @app.post("/api/scheduler/stop")

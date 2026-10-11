@@ -310,3 +310,34 @@ def test_a_press_can_choose_how_many_posts_go_to_the_ai(db, cfg):
     assert seen[-1][-2:] == ["--limit", "200"]                        # no choice: the setting
     with pytest.raises(ValueError):
         sch.start_job("analyze", limit=-5)
+
+
+def test_a_job_started_before_a_restart_is_seen_blocks_a_second_one_and_can_be_stopped(db, cfg, tmp_path, monkeypatch):
+    import os
+    from apartment_bot import jobs
+    monkeypatch.setattr(jobs, "STOP_FILE", tmp_path / ".stop")
+    monkeypatch.setattr(jobs, "SCAN_LOCK", tmp_path / ".scan.lock")
+    monkeypatch.setattr(jobs, "ANALYZE_LOCK", tmp_path / ".analyze.lock")
+    sch = _job_scheduler(db, cfg, lambda args: (0, "ok"))
+    assert jobs.external_job() is None and sch.view()["running"] is False
+    (tmp_path / ".analyze.lock").write_text(str(os.getpid()))          # an analysis of an earlier server is alive
+    assert jobs.external_job() == "analyze"
+    v = sch.view()
+    assert v["running"] and v["job"] == "analyze" and not v["stopping"]
+    assert not sch.start_job("analyze")                                 # a second one would spend the money twice
+    assert sch.stop_job() and jobs.stop_requested() and sch.view()["stopping"]
+    (tmp_path / ".analyze.lock").write_text("99999999")                 # a dead process's lock is ignored
+    assert jobs.external_job() is None
+
+
+def test_two_analyses_cannot_run_at_once(tmp_path, monkeypatch):
+    from apartment_bot import jobs
+    monkeypatch.setattr(jobs, "ANALYZE_LOCK", tmp_path / ".analyze.lock")
+    assert jobs.acquire_analyze_lock()
+    (tmp_path / ".analyze.lock").write_text("1")                        # another live process (pid 1 may be absent)
+    monkeypatch.setattr(jobs, "_pid_alive", lambda pid: True)
+    assert not jobs.acquire_analyze_lock()
+    monkeypatch.setattr(jobs, "_pid_alive", lambda pid: False)          # it died: its lock is replaced
+    assert jobs.acquire_analyze_lock()
+    jobs.release_analyze_lock()
+    assert not (tmp_path / ".analyze.lock").exists()

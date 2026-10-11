@@ -360,7 +360,9 @@ In **Settings**:
   **⏹ Stop**. Stop is polite: the job is asked to finish the post or group it is on, save it and
   end by itself (a stopped group is marked unfinished so the next scan reads it fully); only if it
   hasn't ended after 3 minutes is its process ended. Afterwards the database is checked and the
-  result says so. Only one job runs at a time.
+  result says so. Only one job runs at a time, and a job still running when the server restarts is
+  still shown, still stoppable, and still blocks a second one (each job writes a lock file with its
+  process id: `.scan.lock`, `.analyze.lock`) - so the same AI work is never paid for twice.
 - **Automatic scanning**: the server runs `scan_facebook.py`, then `analyze_posts.py --all`,
   then sends notifications, every N minutes (default 30), except during its quiet hours. It
   is off until you turn it on; *Scan now* runs it once. This replaces the watchdog - don't

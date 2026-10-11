@@ -72,11 +72,21 @@ def main():
     print(f"Analyzing {len(posts)} posts for user '{user['id']}' with {model} "
           f"(pipeline {ai_filter.PIPELINE_VERSION}; stop at first dealbreaker: {'on' if early_stop else 'off'})\n")
 
+    jobs.clear_stop()   # a leftover request from an earlier run must not stop this one
+    if not jobs.acquire_analyze_lock():
+        sys.exit("Another analysis is already running (it would spend the same money twice). Wait for it or stop it in the app.")
+    try:
+        return _analyze(db, cfg, user, args, client, model, early_stop, posts)
+    finally:
+        jobs.release_analyze_lock()
+
+
+def _analyze(db, cfg, user, args, client, model, early_stop, posts):
+    """The analysis loop and its summary (main() holds the analysis lock around it)."""
     results, total_cost, totals = [], 0.0, {"input_tokens": 0, "output_tokens": 0,
                                            "cache_read_tokens": 0, "cache_write_tokens": 0}
     counts = {}
     skipped_by_code = 0
-    jobs.clear_stop()   # a leftover request from an earlier run must not stop this one
     for i, post in enumerate(posts, 1):
         if jobs.stop_requested():
             print(f"Stopped on request after {i - 1} of {len(posts)} posts; each finished post is saved.")
