@@ -112,7 +112,7 @@ def test_settings_and_status_list(client):
     assert r["key"] == "second_visit"
     assert client.delete("/api/statuses/new", headers=W).status_code == 400
     meta = client.get("/api/meta").json()
-    assert meta["recent_days"] == 12 and len(meta["statuses"]) == 11
+    assert meta["recent_days"] == 12 and len(meta["statuses"]) == 12
 
 
 def test_web_app_not_built(client):

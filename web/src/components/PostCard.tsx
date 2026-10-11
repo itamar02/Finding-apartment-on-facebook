@@ -50,6 +50,7 @@ export default function PostCard({ card }: { card: Card }) {
   const mine = card.status?.status;
   const liked = isApproved(mine);
   const disliked = mine === "not_relevant";
+  const backup = mine === "backup";
   const def = app.statusOf(mine);
   // Pill 1: approved / rejected and by whom (the AI bot's verdict only while nobody decided).
   // Pill 2: the process status (contacted, meeting...); plain approved / rejected live in pill 1.
@@ -112,6 +113,14 @@ export default function PostCard({ card }: { card: Card }) {
             onClick={() => (liked && mine !== "interested" ? setPicking(true) : change(card.post_id, liked ? null : "interested"))}
           >
             👍
+          </button>
+          <button
+            className={"btn vote" + (backup ? " on-mid" : "")}
+            aria-label="גיבוי: לא מתלהב, אבל לא לזרוק"
+            title="גיבוי: לא דירת החלומות, אבל לא זורק (הקשה נוספת מבטלת)"
+            onClick={() => change(card.post_id, backup ? null : "backup")}
+          >
+            🟡
           </button>
           <button
             className={"btn vote" + (disliked ? " on-bad" : "")}

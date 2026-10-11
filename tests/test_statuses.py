@@ -14,7 +14,7 @@ def test_migration_moves_hand_rejections_to_not_relevant(v3_db):
     assert row["status"] == "not_relevant" and row["source"] == "human" and row["note"] == "too far"
     assert len(statuses.history(conn, "me", "1003")) == 1
     assert conn.execute("SELECT count(*) FROM human_decisions").fetchone()[0] == 1   # kept as is
-    assert len(statuses.list_statuses(conn)) == 10
+    assert len(statuses.list_statuses(conn)) == 11
 
 
 def test_migration_is_idempotent(v3_db):

@@ -108,6 +108,9 @@ export default function StatusPicker({
               <button className="btn vote-wide on-good-btn" onClick={() => onPick("interested", current?.status === "interested" ? current.note : null)}>
                 👍 מתאימה לי
               </button>
+              <button className="btn vote-wide on-mid-btn" onClick={() => onPick("backup", current?.status === "backup" ? current.note : null)}>
+                🟡 גיבוי
+              </button>
               <button className="btn vote-wide on-bad-btn" onClick={() => onPick("not_relevant", null)}>
                 🗑️ לא מתאימה
               </button>

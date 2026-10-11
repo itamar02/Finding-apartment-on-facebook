@@ -31,7 +31,7 @@ const APPROVED = new Set(["interested", "needs_details", "contacted", "awaiting_
 export const isApproved = (status: string | undefined) => !!status && APPROVED.has(status);
 
 /** The statuses that only say approved / rejected; every other status is a step of the process (the second pill). */
-export const VERDICT_ONLY = new Set(["interested", "not_relevant"]);
+export const VERDICT_ONLY = new Set(["interested", "backup", "not_relevant"]);
 
 export interface Verdict {
   text: string;
@@ -44,6 +44,7 @@ export function verdictOf(ai: { decision: Decision } | null, status: { status: s
   if (status) {
     const by = SOURCE_LABEL[status.source] ?? status.source;
     if (status.status === "not_relevant") return { text: `✗ לא רלוונטי · ${by}`, color: "var(--reject)", decided: true };
+    if (status.status === "backup") return { text: `🟡 גיבוי · ${by}`, color: "#ea580c", decided: true };
     if (status.status === "taken") return { text: `נתפסה · ${by}`, color: "var(--muted)", decided: true };
     if (APPROVED.has(status.status)) return { text: `✓ אושרה · ${by}`, color: "var(--pass)", decided: true };
   }

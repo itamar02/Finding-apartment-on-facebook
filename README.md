@@ -330,7 +330,8 @@ it). `tailscale serve --bg` survives restarts by itself.
   you approved never shows "AI: not checked yet". The second pill is the **process status**
   (contacted, meeting scheduled, visited...), with "+ status" to add one. Tap either to decide:
   👍 approves, 🗑️ marks *Not relevant* and removes the listing from the list at once (Undo in the
-  message that appears). The AI bot's verdict itself is never changed. Listings marked *Not relevant*
+  message that appears). **🟡 Backup** is the in-between: not your dream apartment, but not thrown away
+  (it stays in the list, and in the first pill as "backup - me"). The AI bot's verdict itself is never changed. Listings marked *Not relevant*
   or *Taken* are hidden unless you tick "show those too" in the filter; to rescue something the AI
   bot rejected, filter on *Rejected* and tap 👍. Your decisions also feed the suggestions (see below).
 - **Board**: columns by status. **Notes**: free text on any listing.

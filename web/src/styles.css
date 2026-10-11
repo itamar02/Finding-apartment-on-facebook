@@ -1115,3 +1115,13 @@ button.badge {
   margin-top: 6px;
   display: flex;
 }
+
+.btn.on-mid-btn {
+  border-color: #ea580c;
+  color: #ea580c;
+}
+
+.btn.vote.on-mid {
+  background: #fb923c;
+  border-color: #ea580c;
+}
