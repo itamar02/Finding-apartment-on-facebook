@@ -151,6 +151,29 @@ def recheck_stored(db, user, now=None):
             "hard_rules_json": json.dumps([pre], ensure_ascii=False),
             "input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "cache_write_tokens": 0, "cost_usd": 0.0})
         changed += 1
+    # AI rejections that were sent to review only because the code could not find the AI's quote:
+    # with the tolerant quote check they become rejections.
+    unverified = db.execute(
+        "SELECT a.* FROM post_analyses a WHERE a.user_id = ? AND a.status = 'ok' AND a.final_decision = 'NEEDS_REVIEW'"
+        " AND a.ai_decision = 'REJECT' AND a.decided_by = 'hard_rule'"
+        " AND a.id = (SELECT max(b.id) FROM post_analyses b WHERE b.post_id = a.post_id"
+        "             AND b.user_id = a.user_id AND b.status = 'ok')", (user["id"],)).fetchall()
+    for old in unverified:
+        post = db.execute("SELECT * FROM posts WHERE post_id = ?", (old["post_id"],)).fetchone()
+        checks = hard_rules.run_checks(db, post, json.loads(old["facts_json"]), user, now)
+        decision, rule, reason, by = hard_rules.combine({"decision": old["ai_decision"], "rule": old["ai_rule"]}, checks)
+        if decision != "REJECT":
+            continue
+        _insert(db, {
+            "post_id": old["post_id"], "user_id": user["id"], "pipeline_version": old["pipeline_version"],
+            "config_hash": user_config_hash(user), "model": "none (recheck)",
+            "analyzed_at": now.isoformat(timespec="seconds"), "status": "ok",
+            "ai_decision": old["ai_decision"], "ai_rule": old["ai_rule"], "ai_reason": old["ai_reason"],
+            "final_decision": "REJECT", "final_rule": rule, "final_reason": reason,
+            "decided_by": by, "facts_json": old["facts_json"],
+            "hard_rules_json": json.dumps(checks, ensure_ascii=False),
+            "input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "cache_write_tokens": 0, "cost_usd": 0.0})
+        changed += 1
     return changed
 
 

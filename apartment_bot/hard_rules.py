@@ -27,7 +27,15 @@ def text_fingerprint(text):
 
 
 def _quote_in_post(quote, post_text):
-    return bool(quote) and _norm(quote) in _norm(post_text)
+    """The AI's evidence quote is in the post. The AI often adds its own gloss after the quote
+    ("מחפשת שותפה (feminine verb...)"), or joins two quotes with ";", so any such piece counts."""
+    if not quote:
+        return False
+    text = _norm(post_text)
+    pieces = [quote]
+    for part in re.split(r"[;|]", quote):
+        pieces += [part, re.sub(r"\s*[(\[].*$", "", part)]   # the part without a trailing "(...)" gloss
+    return any(len(_norm(x)) >= 3 and _norm(x) in text for x in pieces)
 
 
 def check_duplicate(db, post, max_age_days, now):
