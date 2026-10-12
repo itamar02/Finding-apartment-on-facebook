@@ -5,10 +5,10 @@
   "backgroundColor": "#0b1120",
   "server": {
     "androidScheme": "https",
-    "allowNavigation": ["*.ts.net"],
-    "cleartext": false
+    "allowNavigation": ["*.ts.net", "100.*"],
+    "cleartext": true
   },
   "android": {
-    "allowMixedContent": false
+    "allowMixedContent": true
   }
 }

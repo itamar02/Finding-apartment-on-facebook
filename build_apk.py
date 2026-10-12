@@ -14,6 +14,7 @@ accepted). Set JAVA_HOME / ANDROID_HOME if they are in unusual places.
 """
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -72,8 +73,9 @@ def main():
     print(f"Java: {java}\nAndroid SDK: {sdk}")
 
     url = (args.url or "").strip().rstrip("/")
-    if url and not url.startswith("https://"):
-        sys.exit("--url must start with https:// (use the address `tailscale serve` printed)")
+    if url and not (url.startswith("https://") or re.match(r"http://100\.\d+\.\d+\.\d+(:\d+)?$", url)):
+        sys.exit("--url must start with https:// (the address `tailscale serve` printed) or be "
+                 "http://<this PC's Tailscale 100.x.y.z address>:<port>: works with Private DNS, Tailscale still encrypts it")
     (APP / "www" / "config.js").write_text(
         f'// Written by build_apk.py. The address can also be changed inside the app.\nwindow.APP_URL = "{url + "/" if url else ""}";\n',
         encoding="utf-8")

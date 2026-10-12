@@ -196,12 +196,12 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
     # --- login ------------------------------------------------------------------------------
 
     @app.post("/api/pair")
-    async def pair(body: PairIn, response: Response):
+    async def pair(body: PairIn, request: Request, response: Response):
         token = auth.redeem_pairing_code(body.code)
         if not token:
             await asyncio.sleep(1)   # slows down guessing on top of the try limit
             raise HTTPException(403, "wrong or expired code")
-        response.set_cookie(auth.COOKIE, token, max_age=400 * 86400, httponly=True, secure=secure_cookie,
+        response.set_cookie(auth.COOKIE, token, max_age=400 * 86400, httponly=True, secure=secure_cookie and request.url.scheme == "https",
                             samesite="strict")
         return {"ok": True}
 

@@ -290,6 +290,11 @@ set `ANDROID_HOME` if it is somewhere unusual). Then:
 python build_apk.py --url https://<your-pc>.<tailnet>.ts.net
 ```
 
+**If the phone uses Private DNS (e.g. dns.adguard.com)**, `*.ts.net` names do not resolve. Use the PC's Tailscale IP instead
+(Tailscale still encrypts it): `tailscale serve --bg --tcp=8080 tcp://127.0.0.1:8787`, then
+`python build_apk.py --url http://<100.x.y.z>:8080` (the IP from `tailscale ip -4`) and reinstall the APK.
+
+
 (the address `tailscale serve` printed; leave `--url` out and the app asks for it on first
 start). The first build downloads Gradle and takes a few minutes. The result is
 `dist/ApartmentBot.apk` (git-ignored), a debug build for your own phone: copy it to the phone,
