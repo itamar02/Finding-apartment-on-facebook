@@ -63,7 +63,7 @@ def ensure_server(wait=240):
         raise TransitError("no Java found for the transit planner")
     log = open(TRANSIT_DIR / "otp.log", "ab")
     subprocess.Popen([java, "-Xmx8g", "-jar", str(TRANSIT_DIR / "otp.jar"), "--load", "--port", str(OTP_PORT),
-                      "--securePort", str(OTP_PORT + 1), str(TRANSIT_DIR)], stdout=log, stderr=log,
+                      str(TRANSIT_DIR)], stdout=log, stderr=log,
                      creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     end = time.time() + wait
     while time.time() < end:
@@ -109,6 +109,28 @@ def geocode(db, text):
                    (key, float(hit["lat"]) if hit else None, float(hit["lon"]) if hit else None, precision,
                     hit.get("display_name") if hit else None, statuses.now_iso()))
     return (float(hit["lat"]), float(hit["lon"]), precision) if hit else None
+
+
+def geocode_place(db, text):
+    """geocode(), trying simpler versions of a place text ("street, neighborhood, city" -> "street, city" ->
+    "neighborhood, city" -> "city"). A neighborhood or city hit is only 'area' precise."""
+    parts = [x.strip() for x in (text or "").split(",") if x.strip()]
+    tries = [", ".join(parts)]
+    if parts and parts[0].startswith("רחוב "):
+        tries.append(", ".join([parts[0][5:]] + parts[1:]))
+    if len(parts) >= 3:
+        tries += [f"{parts[0]}, {parts[-1]}", f"{parts[0][5:] if parts[0].startswith('רחוב ') else parts[0]}, {parts[-1]}",
+                  ", ".join(parts[1:])]
+    if len(parts) >= 2:
+        tries.append(", ".join(parts[-2:]))
+        tries.append(parts[-1])
+    seen = set()
+    for i, t in enumerate(dict.fromkeys(tries)):
+        hit = geocode(db, t)
+        if hit:
+            lat, lon, precision = hit
+            return (lat, lon, precision if parts and t.startswith(parts[0]) else "area")
+    return None
 
 
 # --- routing -----------------------------------------------------------------------------------
@@ -181,7 +203,7 @@ def estimate(db, place, dest, arrive_by, days):
     """Best trip from the place text to the destination (a dict with name/address/lat/lon): {minutes, route,
     station, walk_minutes, scooter, scooter_minutes, precision}, or None when nothing is found.
     Raises TransitError when the planner is down."""
-    origin = geocode(db, place)
+    origin = geocode_place(db, place)
     if dest.get("lat") is not None and dest.get("lon") is not None:
         target = (float(dest["lat"]), float(dest["lon"]), "street")
     else:

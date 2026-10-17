@@ -62,6 +62,16 @@ def fix_gtfs(raw, fixed):
                 w.writeheader()
                 w.writerows(rows)
                 data = out.getvalue().encode("utf-8")
+            if info.filename == "stops.txt":   # some trips stop at "stations": make every stop a plain stop
+                rows = list(csv.DictReader(io.StringIO(data.decode("utf-8-sig"))))
+                for r in rows:
+                    r["location_type"] = "0"
+                    r["parent_station"] = ""
+                out = io.StringIO()
+                w = csv.DictWriter(out, fieldnames=list(rows[0].keys()), lineterminator="\n")
+                w.writeheader()
+                w.writerows(rows)
+                data = out.getvalue().encode("utf-8")
             if info.filename == "routes.txt":   # type 8 (shared taxi) is not a standard type: treat it as a bus
                 rows = list(csv.DictReader(io.StringIO(data.decode("utf-8-sig"))))
                 for r in rows:
