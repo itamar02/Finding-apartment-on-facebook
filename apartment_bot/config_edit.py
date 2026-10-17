@@ -14,7 +14,7 @@ from pathlib import Path
 
 from ruamel.yaml import YAML
 
-from .config import DEFAULT_CONFIG_PATH, LISTING_TYPES, ConfigError, get_user, load_config
+from .config import DEFAULT_CONFIG_PATH, LISTING_TYPES, ConfigError, get_user, load_config, validate_destinations
 
 TEXT_LIST = "list[str]"
 EDITABLE = {
@@ -40,6 +40,7 @@ EDITABLE = {
     "features.dealbreakers": TEXT_LIST,
     "move_in.earliest": "date?",
     "move_in.latest": "date?",
+    "commute.destinations": "destinations",
     "free_text": "str",
 }
 
@@ -77,6 +78,30 @@ def check_value(path, value):
         if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
             raise EditError(f"{path}: must be a list of texts")
         return [v.strip() for v in value if v.strip()]
+    if kind == "destinations":
+        if not isinstance(value, list):
+            raise EditError(f"{path}: must be a list")
+        out = []
+        for d in value:
+            if not isinstance(d, dict):
+                raise EditError(f"{path}: each destination must have a name")
+            item = {"name": str(d.get("name") or "").strip()}
+            if d.get("address"):
+                item["address"] = str(d["address"]).strip()
+            if d.get("max_minutes") not in (None, ""):
+                try:
+                    item["max_minutes"] = int(float(d["max_minutes"]))
+                except (TypeError, ValueError):
+                    raise EditError(f"{path}: the maximum minutes must be a number")
+            if d.get("arrive_by"):
+                item["arrive_by"] = str(d["arrive_by"]).strip()
+            item["days"] = d.get("days") or "weekdays"
+            out.append(item)
+        try:
+            validate_destinations(out)
+        except ConfigError as e:
+            raise EditError(str(e))
+        return out
     if kind.endswith("?") and value in (None, ""):
         return None
     base = kind.rstrip("?")
@@ -102,7 +127,9 @@ def _set(node, path, value):
             node[part] = {}
         node = node[part]
     old = node.get(parts[-1])
-    if isinstance(old, list) and isinstance(value, list):
+    if path == "commute.destinations":
+        node[parts[-1]] = value          # a list of mappings: written as a fresh block list
+    elif isinstance(old, list) and isinstance(value, list):
         flow = old.fa.flow_style() or not old.ca.items
         old[:] = value            # same list object: keeps its comments
         if flow:

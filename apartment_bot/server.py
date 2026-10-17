@@ -260,23 +260,23 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
     @app.post("/api/posts/{post_id}/commute")
     def post_commute(post_id: str, db=Depends(get_db)):
         """(Re)estimate the trip to the configured destination now; waits for the model."""
-        if not commute.settings(get_user(cfg, uid))["destination"]:
-            raise HTTPException(400, "no destination: set commute.destination.name in config.yaml")
+        if not commute.names(get_user(cfg, uid)):
+            raise HTTPException(400, "no destination: add one under commute.destinations in config.yaml (or in Settings)")
         try:
             result = commute.check(db, cfg, get_user(cfg, uid), _router(db), post_id, force=True)
         except ConfigError as e:
             raise HTTPException(400, f"AI key: {e}")
         except Exception as e:
             raise HTTPException(502, f"the model could not estimate it: {e}")
-        if result is None:
+        if not result:
             raise HTTPException(400, "this listing has no location to start from: add one with the pencil next to the location")
-        return {"commute": result}
+        return {"commutes": result}
 
     @app.post("/api/commute/backfill")
     def commute_backfill(db=Depends(get_db)):
         """Estimate every approved listing that has none yet (background)."""
         user = get_user(cfg, uid)
-        ids = commute.approved_without_estimate(db, uid, commute.settings(user)["destination"])[:60]
+        ids = commute.approved_without_estimate(db, uid, commute.names(user))[:60]
         commute.check_in_background(cfg, user, lambda: dbmod.connect(db_path, check_same_thread=False), _router, ids)
         return {"started": len(ids)}
 
@@ -534,7 +534,7 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
         result = gpt_io.apply(db, uid, body.text, override_human=body.override_human)
         user = get_user(cfg, uid)
         commute.check_in_background(cfg, user, lambda: dbmod.connect(db_path, check_same_thread=False), _router,
-                                    commute.approved_without_estimate(db, uid, commute.settings(user)["destination"])[:60])
+                                    commute.approved_without_estimate(db, uid, commute.names(user))[:60])
         return result
 
     # --- background scheduler -------------------------------------------------------------------

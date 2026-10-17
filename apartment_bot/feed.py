@@ -25,15 +25,9 @@ SELECT p.post_id, p.group_id, p.author, p.author_id, p.posted_at, {text} AS text
        s.status, s.note AS status_note, s.source AS status_source, s.updated_at AS status_updated_at,
        (SELECT count(*) FROM post_notes n WHERE n.post_id = p.post_id AND n.user_id = :user) AS notes_count,
        l.location AS my_location, pr.rent_ils AS my_rent, pb.bills AS my_bills,
-       mt.meeting_at AS meeting_at, mt.address AS meeting_address, pn.note AS price_note,
-       pc.minutes AS commute_minutes, pc.within_limit AS commute_ok, pc.route AS commute_route,
-       pc.uses_scooter AS commute_scooter, pc.scooter_minutes AS commute_scooter_min,
-       pc.confidence AS commute_confidence, pc.destination AS commute_destination,
-       pc.from_place AS commute_from, pc.checked_at AS commute_checked_at,
-       pc.station AS commute_station, pc.walk_minutes AS commute_walk
+       mt.meeting_at AS meeting_at, mt.address AS meeting_address, pn.note AS price_note
 FROM posts p
 LEFT JOIN post_price_note pn ON pn.post_id = p.post_id AND pn.user_id = :user
-LEFT JOIN post_commute pc ON pc.post_id = p.post_id AND pc.user_id = :user
 LEFT JOIN post_meeting mt ON mt.post_id = p.post_id AND mt.user_id = :user
 LEFT JOIN post_bills pb ON pb.post_id = p.post_id AND pb.user_id = :user
 LEFT JOIN post_location l ON l.post_id = p.post_id AND l.user_id = :user
@@ -118,8 +112,21 @@ def query_posts(db, cfg, user_id, *, decisions=None, statuses_=None, exclude_sta
     has_prices = bool(db.execute("SELECT 1 FROM sqlite_master WHERE name = 'listing_posts'").fetchone())
     for c in page:   # only for the cards actually returned
         c["photos"] = photos(db, c["post_id"])
+        c["commutes"] = commutes(db, user_id, c["post_id"])
         c["price_history"] = prices.history(db, c["post_id"]) if has_prices else []
     return {"total": len(cards), "items": page}
+
+
+def commutes(db, user_id, post_id):
+    """The stored trip estimates of a listing, one per destination."""
+    return [{"destination": r["destination"], "minutes": r["minutes"],
+             "within_limit": None if r["within_limit"] is None else bool(r["within_limit"]),
+             "route": r["route"], "scooter": bool(r["uses_scooter"]), "scooter_minutes": r["scooter_minutes"],
+             "confidence": r["confidence"], "from": r["from_place"], "station": r["station"],
+             "walk_minutes": r["walk_minutes"], "arrive_by": r["arrive_by"], "days": r["days"],
+             "checked_at": r["checked_at"]}
+            for r in db.execute("SELECT * FROM post_commute WHERE post_id = ? AND user_id = ? ORDER BY rowid",
+                                (post_id, user_id))]
 
 
 BILL_KINDS = ("arnona", "vaad_bayit", "utilities", "bills_bundle", "internet")
@@ -188,11 +195,6 @@ def _card(r, facts, contact, names, template):
         "location": location_info(facts, r["my_location"]),
         "bills": bills_info(facts, r["my_bills"]),
         "price_note": r["price_note"],
-        "commute": None if r["commute_checked_at"] is None else {
-            "minutes": r["commute_minutes"], "within_limit": None if r["commute_ok"] is None else bool(r["commute_ok"]),
-            "route": r["commute_route"], "scooter": bool(r["commute_scooter"]), "scooter_minutes": r["commute_scooter_min"],
-            "confidence": r["commute_confidence"], "destination": r["commute_destination"],
-            "from": r["commute_from"], "station": r["commute_station"], "walk_minutes": r["commute_walk"], "checked_at": r["commute_checked_at"]},
         "meeting": {"at": r["meeting_at"], "address": r["meeting_address"]} if r["meeting_at"] else None,
         "price": {"rent": (facts or {}).get("rent_ils"), "total": (facts or {}).get("total_monthly_ils_known"),
                   "mine": bool((facts or {}).get("_rent_mine")), "ai_rent": (facts or {}).get(

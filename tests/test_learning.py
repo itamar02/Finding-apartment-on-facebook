@@ -95,3 +95,16 @@ def test_learning_needs_enough_reactions_and_schedule(db, cfg):
     assert learning.due(db)
     learning._mark_run(db)
     assert not learning.due(db)
+
+
+def test_commute_destinations_can_be_edited(cfg_file):
+    dests = [{"name": "Work", "address": "Azrieli", "max_minutes": "45", "arrive_by": "08:30", "days": "weekdays"},
+             {"name": "הים", "days": "daily"}]
+    new_cfg, _ = config_edit.apply([("commute.destinations", "set", dests)], "me", path=cfg_file)
+    got = new_cfg["users"][0]["commute"]["destinations"]
+    assert got[0] == {"name": "Work", "address": "Azrieli", "max_minutes": 45, "arrive_by": "08:30", "days": "weekdays"}
+    assert got[1] == {"name": "הים", "days": "daily"}
+    assert "# EDIT: used for roommate age requirements" in cfg_file.read_text(encoding="utf-8")
+    for bad in ([{"name": ""}], [{"name": "x", "arrive_by": "8.30"}], [{"name": "x", "days": "monthly"}], "x"):
+        with pytest.raises(config_edit.EditError):
+            config_edit.apply([("commute.destinations", "set", bad)], "me", path=cfg_file)

@@ -34,7 +34,7 @@ geography, and give your best realistic estimate.
 
 Rules:
 - The trip is door to door: walking to the first stop, waiting, the ride, transfers, the walk at the end. \
-Assume a normal weekday morning (arriving around 8:30) unless told otherwise.
+Use the day and arrival time you are given (public transport runs differently at rush hour and on Fridays and Saturdays; on Shabbat there is almost no service).
 - A rental e-scooter or e-bike (Lime, Wind, Bird, Tel-O-Fun bikes...) may be used for a stretch where it \
 really helps (the first or last 1-3 km, or to skip a transfer). Mention it only if you use it, set \
 uses_scooter and scooter_minutes, and do not assume one is waiting at the door.
@@ -50,12 +50,26 @@ confidence low. If there is no usable location at all, minutes = 0 and confidenc
 
 
 def settings(user):
+    """{"model", "destinations": [{name, address, max_minutes, arrive_by, days}]} from the user's config.
+
+    commute.destinations is the list; an older config with a single commute.destination / absolute_max_minutes
+    is read as a one-item list."""
     c = user.get("commute") or {}
-    d = c.get("destination") or {}
-    name = (d.get("name") or "").strip()
-    return {"destination": name or (d.get("address") or "").strip(), "address": (d.get("address") or "").strip(),
-            "limit": c.get("absolute_max_minutes"), "preferred": c.get("preferred_max_minutes"),
-            "model": c.get("model") or DEFAULT_MODEL}
+    dests = c.get("destinations")
+    if dests is None:
+        d = c.get("destination") or {}
+        name = (d.get("name") or d.get("address") or "").strip()
+        dests = [{"name": name, "address": d.get("address"), "max_minutes": c.get("absolute_max_minutes")}] if name else []
+    out = [{"name": d["name"].strip(), "address": (d.get("address") or "").strip(), "max_minutes": d.get("max_minutes"),
+            "arrive_by": d.get("arrive_by"), "days": d.get("days") or "weekdays"} for d in dests if (d.get("name") or "").strip()]
+    return {"destinations": out, "model": c.get("model") or DEFAULT_MODEL}
+
+
+DAY_TEXT = {"weekdays": "a normal weekday (Sunday to Thursday)", "daily": "any day", "weekend": "a Friday or Saturday"}
+
+
+def names(user):
+    return [d["name"] for d in settings(user)["destinations"]]
 
 
 def _location_text(card):
@@ -65,56 +79,70 @@ def _location_text(card):
 
 
 def check(db, cfg, user, router, post_id, force=False):
-    """Estimate and store the trip for one post. Returns the stored dict, or None when commute is not set up
-    (no destination) or the listing has no location at all."""
+    """Estimate and store the trip to every configured destination. Returns the stored estimates (a list; empty
+    when commute is not set up or the listing has no location at all)."""
     from . import feed
     s = settings(user)
-    if not s["destination"]:
-        return None
+    if not s["destinations"]:
+        return []
     card = feed.post_detail(db, cfg, user["id"], post_id)
     if not card:
-        return None
-    if card.get("commute") and not force and card["commute"]["destination"] == s["destination"]:
-        return card["commute"]
+        return []
     place = _location_text(card)
     if not place:
-        return None
-    content = (f"Destination: {s['destination']}" + (f" ({s['address']})" if s["address"] and s["address"] != s["destination"] else "")
-               + f"\nApartment location: {place}\n"
-               + (f"Maximum wanted: {s['limit']} minutes.\n" if s["limit"] else ""))
-    raw, usage, cost, label = router.json_call("commute", [{"type": "text", "text": SYSTEM}], content, SCHEMA,
-                                               model=s["model"])
+        return []
+    have = {c["destination"]: c for c in card["commutes"]}
+    for d in s["destinations"]:
+        old = have.get(d["name"])
+        if old and not force and old["arrive_by"] == d["arrive_by"] and old["days"] == d["days"]:
+            continue
+        _estimate(db, user, router, post_id, place, d, s["model"])
+    return feed.commutes(db, user["id"], post_id)
+
+
+def _estimate(db, user, router, post_id, place, d, model):
+    when = (f"Arrive by {d['arrive_by']} on {DAY_TEXT.get(d['days'], d['days'])}." if d["arrive_by"]
+            else f"Plan for {DAY_TEXT.get(d['days'], d['days'])}, mid-morning, outside rush hour.")
+    content = (f"Destination: {d['name']}" + (f" ({d['address']})" if d["address"] and d["address"] != d["name"] else "")
+               + f"\nApartment location: {place}\n{when}\n"
+               + (f"Maximum wanted: {d['max_minutes']} minutes.\n" if d["max_minutes"] else ""))
+    raw, usage, cost, label = router.json_call("commute", [{"type": "text", "text": SYSTEM}], content, SCHEMA, model=model)
     r = json.loads(raw)
     minutes = r["minutes"] if r["minutes"] and r["minutes"] > 0 else None
-    ok = None if minutes is None or not s["limit"] else int(minutes <= s["limit"])
-    cost = cost if cost is not None else cost_usd(s["model"], usage)
+    ok = None if minutes is None or not d["max_minutes"] else int(minutes <= d["max_minutes"])
+    cost = cost if cost is not None else cost_usd(model, usage)
+    station = (r["station"] or "").strip() or None
     with db:
         db.execute(
             "INSERT OR REPLACE INTO post_commute (post_id, user_id, destination, from_place, minutes, within_limit,"
-            " route, uses_scooter, scooter_minutes, confidence, model, cost_usd, checked_at, station, walk_minutes)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (post_id, user["id"], s["destination"], r["from_place"], minutes, ok, r["route"].strip(),
+            " route, uses_scooter, scooter_minutes, confidence, model, cost_usd, checked_at, station, walk_minutes,"
+            " arrive_by, days) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (post_id, user["id"], d["name"], r["from_place"], minutes, ok, r["route"].strip(),
              int(r["uses_scooter"]), r["scooter_minutes"] if r["uses_scooter"] else None, r["confidence"],
-             s["model"], cost, statuses.now_iso(), (r["station"] or "").strip() or None,
-             r["walk_minutes"] if r["walk_minutes"] and r["walk_minutes"] > 0 and (r["station"] or "").strip() else None))
-    return feed.post_detail(db, cfg, user["id"], post_id)["commute"]
+             model, cost, statuses.now_iso(), station,
+             r["walk_minutes"] if r["walk_minutes"] and r["walk_minutes"] > 0 and station else None,
+             d["arrive_by"], d["days"]))
 
 
-def approved_without_estimate(db, user_id, destination):
-    """Listings I approved, plus those the AI passed that nobody has closed, that have no estimate yet."""
+def approved_without_estimate(db, user_id, destinations):
+    """Listings I approved, plus those the AI passed that nobody has closed, that lack an estimate for at least
+    one destination (destinations: the list of names)."""
+    names = [d for d in destinations if d]
+    if not names:
+        return []
     marks = ",".join("?" * len(APPROVED))
-    rows = db.execute(
-        f"SELECT s.post_id FROM post_status s LEFT JOIN post_commute c ON c.post_id = s.post_id AND c.user_id = s.user_id"
-        f" AND c.destination = ? WHERE s.user_id = ? AND s.status IN ({marks}) AND c.post_id IS NULL",
-        (destination, user_id, *APPROVED)).fetchall()
-    rows += db.execute(
-        "SELECT a.post_id FROM post_analyses a LEFT JOIN post_commute c ON c.post_id = a.post_id AND c.user_id = a.user_id"
-        " AND c.destination = ? LEFT JOIN post_status s ON s.post_id = a.post_id AND s.user_id = a.user_id"
-        " WHERE a.user_id = ? AND a.status = 'ok' AND a.final_decision = 'PASS' AND c.post_id IS NULL"
+    ids = [r[0] for r in db.execute(f"SELECT post_id FROM post_status WHERE user_id = ? AND status IN ({marks})",
+                                    (user_id, *APPROVED))]
+    ids += [r[0] for r in db.execute(
+        "SELECT a.post_id FROM post_analyses a LEFT JOIN post_status s ON s.post_id = a.post_id AND s.user_id = a.user_id"
+        " WHERE a.user_id = ? AND a.status = 'ok' AND a.final_decision = 'PASS'"
         " AND coalesce(s.status, '') NOT IN ('not_relevant', 'taken')"
         " AND a.id = (SELECT max(b.id) FROM post_analyses b WHERE b.post_id = a.post_id AND b.user_id = a.user_id AND b.status = 'ok')",
-        (destination, user_id)).fetchall()
-    return list(dict.fromkeys(r[0] for r in rows))
+        (user_id,))]
+    have = {}
+    for r in db.execute("SELECT post_id, destination FROM post_commute WHERE user_id = ?", (user_id,)):
+        have.setdefault(r[0], set()).add(r[1])
+    return [i for i in dict.fromkeys(ids) if not set(names) <= have.get(i, set())]
 
 
 def check_in_background(cfg, user, open_db, router_factory, post_ids):

@@ -23,13 +23,13 @@ def main():
         key = get_api_key(cfg)
     except ConfigError as e:
         sys.exit(f"config error: {e}")
-    dest = commute.settings(user)["destination"]
+    dest = commute.names(user)
     if not dest:
-        sys.exit("Set commute.destination.name in config.yaml first.")
+        sys.exit("Add a destination under commute.destinations in config.yaml first.")
     db, _ = dbmod.migrate()
     router = providers.Router(db, cfg, lambda: anthropic.Anthropic(api_key=key))
     ids = commute.approved_without_estimate(db, user["id"], dest)[:args.limit]
-    print(f"{len(ids)} approved listings without an estimate for: {dest.encode('unicode_escape').decode()}")
+    print(f"{len(ids)} approved listings without an estimate for: {" / ".join(dest).encode('unicode_escape').decode()}")
     done = 0
     for pid in ids:
         try:
@@ -38,7 +38,7 @@ def main():
             print(f"  {pid}: failed ({e})")
             continue
         done += 1
-        print(f"  {pid}: {r['minutes'] if r else 'no location'}")
+        print(f"  {pid}: {', '.join(str(x['minutes']) for x in r) if r else 'no location'}")
     print(f"Done: {done} estimated.")
 
 

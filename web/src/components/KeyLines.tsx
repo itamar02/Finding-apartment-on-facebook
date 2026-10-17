@@ -19,7 +19,7 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
   const [bills, setBills] = useState(card.bills);
   const [billsDraft, setBillsDraft] = useState<"included" | "excluded" | null>(null);
   const [note, setNote] = useState(card.price_note);
-  const [commute, setCommute] = useState<Commute | null>(card.commute);
+  const [commutes, setCommutes] = useState<Commute[]>(card.commutes ?? []);
   const [checking, setChecking] = useState(false);
   const [editingPrice, setEditingPrice] = useState(false);
   const [textDraft, setTextDraft] = useState("");
@@ -55,7 +55,7 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
   async function checkCommute() {
     setChecking(true);
     try {
-      setCommute((await api.checkCommute(card.post_id)).commute);
+      setCommutes((await api.checkCommute(card.post_id)).commutes);
     } catch (e) {
       app.fail(e);
     } finally {
@@ -203,38 +203,41 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
           </>
         )}
       </div>
-      {commute && (
+      {commutes.length > 0 && (
         <>
-          <div className="keyline">
-            <span className="key">נסיעה:</span>
-            <span className="grow" dir="auto">
-              {commute ? (
-                commute.minutes ? (
-                  <>
-                    <b className={commute.within_limit === false ? "commute-bad" : commute.within_limit ? "commute-ok" : ""}>
-                      ~{commute.minutes} דק׳
-                    </b>
-                    {" ל"}
-                    {commute.destination}
-                    {commute.scooter && <span title="כולל קורקינט שכור"> 🛴{commute.scooter_minutes ? ` ${commute.scooter_minutes} דק׳` : ""}</span>}
-                    <span className="small muted"> · הערכה{commute.confidence === "low" ? " לא בטוחה" : ""}</span>
-                  </>
-                ) : (
-                  <span className="muted">לא הצלחתי להעריך (אין מיקום ברור)</span>
-                )
-              ) : null}
-            </span>
-            <button className="icon small-icon" aria-label="בדיקת זמן נסיעה" title={commute ? "בדיקה מחדש" : "בדוק עכשיו"} disabled={checking} onClick={checkCommute}>
-              {checking ? "…" : "🔄"}
-            </button>
-          </div>
-          {commute?.route && (
-            <div className="small muted keyhints" dir="auto">
-              {commute.station && commute.walk_minutes ? `🚶 ${commute.walk_minutes} דק׳ ל${commute.station} · ` : ""}
-              {commute.from ? `מ${commute.from}: ` : ""}
-              {commute.route}
+          {commutes.map((c, i) => (
+            <div key={c.destination}>
+              <div className="keyline">
+                <span className="key">{i === 0 ? "נסיעה:" : ""}</span>
+                <span className="grow" dir="auto">
+                  {c.minutes ? (
+                    <>
+                      <b className={c.within_limit === false ? "commute-bad" : c.within_limit ? "commute-ok" : ""}>~{c.minutes} דק׳</b>
+                      {" ל"}
+                      {c.destination}
+                      {c.arrive_by && <span className="small muted"> (עד {c.arrive_by})</span>}
+                      {c.scooter && <span title="כולל קורקינט שכור"> 🛴{c.scooter_minutes ? ` ${c.scooter_minutes} דק׳` : ""}</span>}
+                      <span className="small muted"> · הערכה{c.confidence === "low" ? " לא בטוחה" : ""}</span>
+                    </>
+                  ) : (
+                    <span className="muted">לא הצלחתי להעריך נסיעה ל{c.destination} (אין מיקום ברור)</span>
+                  )}
+                </span>
+                {i === 0 && (
+                  <button className="icon small-icon" aria-label="בדיקת זמן נסיעה" title="בדיקה מחדש" disabled={checking} onClick={checkCommute}>
+                    {checking ? "…" : "🔄"}
+                  </button>
+                )}
+              </div>
+              {c.route && (
+                <div className="small muted keyhints" dir="auto">
+                  {c.station && c.walk_minutes ? `🚶 ${c.walk_minutes} דק׳ ל${c.station} · ` : ""}
+                  {c.from ? `מ${c.from}: ` : ""}
+                  {c.route}
+                </div>
+              )}
             </div>
-          )}
+          ))}
         </>
       )}
     </div>

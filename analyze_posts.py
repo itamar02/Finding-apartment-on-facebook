@@ -33,13 +33,13 @@ def _recheck(db, user):
 def _commute(db, cfg, user, client):
     """The trip estimate for listings the AI just passed (best effort, a cent each)."""
     from apartment_bot import commute
-    dest = commute.settings(user)["destination"]
+    dest = commute.names(user)
     if not dest:
         return
     done = 0
     for pid in commute.approved_without_estimate(db, user["id"], dest)[:40]:
         try:
-            done += bool(commute.check(db, cfg, user, client, pid))
+            done += len(commute.check(db, cfg, user, client, pid))
         except Exception as e:
             print(f"  trip estimate for {pid} failed: {e}")
     if done:

@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 
 import yaml
@@ -32,6 +33,26 @@ def _require(d, path, types, optional=False):
     return cur
 
 
+DESTINATION_DAYS = ("weekdays", "daily", "weekend")
+
+
+def validate_destinations(dests):
+    """commute.destinations: [{name, address?, max_minutes?, arrive_by? "HH:MM", days? weekdays|daily|weekend}]."""
+    if not isinstance(dests, list):
+        raise ConfigError("commute.destinations must be a list")
+    for i, d in enumerate(dests):
+        where = f"commute.destinations[{i}]"
+        if not isinstance(d, dict) or not isinstance(d.get("name"), str) or not d["name"].strip():
+            raise ConfigError(f"{where}.name must be a non-empty text")
+        if d.get("max_minutes") is not None and (isinstance(d["max_minutes"], bool) or not isinstance(d["max_minutes"], (int, float)) or d["max_minutes"] <= 0):
+            raise ConfigError(f"{where}.max_minutes must be a positive number or blank")
+        t = d.get("arrive_by")
+        if t is not None and not (isinstance(t, str) and re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", t)):
+            raise ConfigError(f"{where}.arrive_by must look like 08:30 or be blank")
+        if d.get("days") is not None and d["days"] not in DESTINATION_DAYS:
+            raise ConfigError(f"{where}.days must be one of {', '.join(DESTINATION_DAYS)}")
+
+
 def _validate_user(u):
     """Check that one user entry has every setting the pipeline reads, with sane values."""
     uid = _require(u, "id", str)
@@ -60,12 +81,16 @@ def _validate_user(u):
     for key in ("required", "nice_to_have", "dealbreakers"):
         _require(u, f"features.{key}", list)
     # Commute values are not used by any stage yet, so all of them may be blank.
-    _require(u, "commute.destination.name", str, optional=True)
+    if "destinations" in u["commute"]:
+        validate_destinations(u["commute"]["destinations"])
+    else:
+        _require(u, "commute.destination.name", str, optional=True)
     if "model" in u["commute"]:   # optional: the model for the commute estimate
         _require(u, "commute.model", str, optional=True)
     for key in ("preferred_max_minutes", "absolute_max_minutes", "preferred_max_walking_minutes",
                 "preferred_max_transfers"):
-        _require(u, f"commute.{key}", num, optional=True)
+        if key in u["commute"] or "destinations" not in u["commute"]:
+            _require(u, f"commute.{key}", num, optional=True)
 
 
 def _validate_api_key_setting(cfg):

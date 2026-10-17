@@ -115,13 +115,17 @@ users:
       # After you approve a listing, a stronger model estimates the door-to-door trip to the destination
       # by public transport (a rental scooter may be used for part of it) and shows it on the listing.
       # "A/B" in the name = either place. It is an estimate: the model has no live timetable.
-      # Leave destination.name blank to turn this off.
-      destination:
-        name: null                 # e.g. "Azrieli Center, Tel Aviv"
-        address: null
+      # Several destinations are allowed (work, the sea...): each gets its own estimate.
+      # Per destination: name, address (optional), max_minutes (red when over; blank = no limit),
+      # arrive_by "08:30" (when you need to be there; blank = mid-morning), days: weekdays | daily | weekend.
+      # An empty list turns the estimate off. Also editable in the app: Settings.
+      destinations: []
+      #  - name: Azrieli Center, Tel Aviv
+      #    max_minutes: 45
+      #    arrive_by: "08:30"
+      #    days: weekdays
       model: claude-sonnet-5-5     # claude-opus-5-5 is stronger and about twice the price
       preferred_max_minutes: null
-      absolute_max_minutes: null   # listings whose trip is longer are marked red
       preferred_max_walking_minutes: null
       preferred_max_transfers: null
       modes: [public_transit]

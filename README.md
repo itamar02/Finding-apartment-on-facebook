@@ -495,16 +495,18 @@ check each provider's page.
 `python app_server.py --insecure-cookie` in one terminal and `cd web && npm run dev` in
 another; open http://localhost:5173. Tests: `python -m pytest`.
 
-### Travel time to my destination
+### Travel time to my destinations
 
-Once a listing is approved (by me or by an AI chat), a stronger model (`commute.model`, default
-`claude-sonnet-5-5`) estimates the door-to-door trip by public transport to `commute.destination.name`
-in `config.yaml`, with a rental scooter (Lime and the like) allowed for part of it. "A/B" in the name
-means either place. It shows on the listing as "נסיעה: ~45 דק׳ ל…", red when over
-`commute.absolute_max_minutes`, with the route underneath; the 🔄 button re-estimates it (for example after
-you fix the location). It is an estimate (the model has no live timetable), stored in `post_commute`, about
-a cent per listing. Leave the destination blank to turn it off. Listings approved before this existed:
-`POST /api/commute/backfill` (or approve the next batch from an AI chat).
+Once a listing is approved (by me or by an AI chat) or passed by the AI, a stronger model
+(`commute.model`, default `claude-sonnet-5-5`) estimates the door-to-door trip by public transport to each
+of `commute.destinations` in `config.yaml` (also editable in the app: Settings). Each destination has a
+`name`, an optional `address`, `max_minutes` (red when over), `arrive_by` (e.g. `"08:30"`, when I need to
+be there) and `days` (`weekdays` Sunday to Thursday, `daily`, `weekend`). "A/B" in a name means either place.
+A rental scooter may be used for part of the trip, and the walk to the nearest station is given when the
+post names a street. It shows on the listing as "נסיעה: ~45 דק׳ ל… (עד 08:30)", with the route underneath;
+the 🔄 button re-estimates all destinations. It is an estimate, because the model has no live timetable;
+stored in `post_commute`, about a cent per destination. An empty list turns it off.
+`python check_commute.py` fills in listings that have none yet; `POST /api/commute/backfill` does the same.
 
 ## Configuration
 

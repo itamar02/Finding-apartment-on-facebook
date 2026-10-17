@@ -387,6 +387,35 @@ MIGRATIONS = [
     ALTER TABLE post_commute ADD COLUMN station TEXT;
     ALTER TABLE post_commute ADD COLUMN walk_minutes INTEGER;
     """,
+    # 16 -> 17: one estimate per destination (several destinations are allowed).
+    """
+    CREATE TABLE post_commute_new (
+        post_id       TEXT NOT NULL,
+        user_id       TEXT NOT NULL,
+        destination   TEXT NOT NULL,
+        from_place    TEXT,
+        minutes       INTEGER,
+        within_limit  INTEGER,
+        route         TEXT,
+        uses_scooter  INTEGER NOT NULL DEFAULT 0,
+        scooter_minutes INTEGER,
+        confidence    TEXT,
+        model         TEXT,
+        cost_usd      REAL,
+        checked_at    TEXT NOT NULL,
+        station       TEXT,
+        walk_minutes  INTEGER,
+        arrive_by     TEXT,                -- the arrival time the estimate was made for, e.g. 08:30
+        days          TEXT,
+        PRIMARY KEY (post_id, user_id, destination)
+    );
+    INSERT INTO post_commute_new (post_id, user_id, destination, from_place, minutes, within_limit, route, uses_scooter,
+                                  scooter_minutes, confidence, model, cost_usd, checked_at, station, walk_minutes)
+        SELECT post_id, user_id, destination, from_place, minutes, within_limit, route, uses_scooter,
+               scooter_minutes, confidence, model, cost_usd, checked_at, station, walk_minutes FROM post_commute;
+    DROP TABLE post_commute;
+    ALTER TABLE post_commute_new RENAME TO post_commute;
+    """,
 ]
 
 # A post's current text: its latest version if it was edited, else the text first seen.

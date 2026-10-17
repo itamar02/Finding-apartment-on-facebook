@@ -5,6 +5,16 @@ import { TYPE_LABEL } from "../format";
 
 type Values = Record<string, unknown>;
 
+interface Dest {
+  name: string;
+  address?: string;
+  max_minutes?: number | string | null;
+  arrive_by?: string | null;
+  days?: string;
+}
+
+const DAYS: [string, string][] = [["weekdays", "ימי חול (א׳-ה׳)"], ["daily", "כל יום"], ["weekend", "סוף שבוע"]];
+
 const LISTS: [string, string, string][] = [
   ["listing.search_cities", "ערים לחיפוש", "תל אביב, רמת גן"],
   ["areas.allowed", "רק באזורים האלה (ריק = כל העיר)", ""],
@@ -62,6 +72,7 @@ export default function SearchSettings() {
   async function save() {
     if (!values) return;
     const out: Values = { ...values };
+    out["commute.destinations"] = ((values["commute.destinations"] as Dest[] | null) ?? []).filter((d) => d.name.trim());
     for (const [k] of LISTS) out[k] = (lists[k] ?? "").split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
     try {
       const r = await api.saveProfile(out);
@@ -74,6 +85,8 @@ export default function SearchSettings() {
   }
 
   const allowed = (values["listing.allowed_types"] as string[]) ?? [];
+  const dests = ((values["commute.destinations"] as Dest[] | null) ?? []).map((d) => ({ ...d }));
+  const setDest = (i: number, patch: Partial<Dest>) => set("commute.destinations", dests.map((d, j) => (j === i ? { ...d, ...patch } : d)));
 
   return (
     <div className="form">
@@ -106,6 +119,36 @@ export default function SearchSettings() {
           </button>
         ))}
       </div>
+      <span className="label">יעדי נסיעה (לכל אחד זמן נסיעה בתחבורה ציבורית מכל דירה מאושרת)</span>
+      {dests.map((d, i) => (
+        <div key={i} className="card-box" style={{ display: "grid", gap: 6, padding: 8, border: "1px solid var(--border)", borderRadius: 8 }}>
+          <input dir="auto" placeholder="שם היעד, למשל: העבודה או הים" value={d.name} onChange={(e) => setDest(i, { name: e.target.value })} />
+          <input dir="auto" placeholder="כתובת (לא חובה)" value={d.address ?? ""} onChange={(e) => setDest(i, { address: e.target.value })} />
+          <div className="grid2">
+            <label className="field">
+              <span className="label">מקסימום דקות</span>
+              <input inputMode="numeric" value={d.max_minutes ?? ""} onChange={(e) => setDest(i, { max_minutes: e.target.value === "" ? null : e.target.value })} />
+            </label>
+            <label className="field">
+              <span className="label">להגיע עד שעה</span>
+              <input type="time" value={d.arrive_by ?? ""} onChange={(e) => setDest(i, { arrive_by: e.target.value || null })} />
+            </label>
+          </div>
+          <select value={d.days ?? "weekdays"} onChange={(e) => setDest(i, { days: e.target.value })}>
+            {DAYS.map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+          <button className="btn" onClick={() => set("commute.destinations", dests.filter((_, j) => j !== i))}>
+            הסר יעד
+          </button>
+        </div>
+      ))}
+      <button className="btn" onClick={() => set("commute.destinations", [...dests, { name: "", days: "weekdays" }])}>
+        + הוסף יעד
+      </button>
       {LISTS.map(([k, label, ph]) => (
         <label key={k} className="field">
           <span className="label">{label}</span>
