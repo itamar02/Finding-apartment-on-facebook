@@ -103,6 +103,21 @@ def check_listing_type(facts, user):
     return _check("listing_type", "pass", f"Listing type {lt} is allowed.")
 
 
+WOMEN_ONLY_PHRASES = ("דירת שותפות",)   # feminine plural: an apartment of women, looking for a woman
+
+
+def check_women_only_phrase(post, user):
+    """"דירת שותפות" means a women's apartment: rejected for a male user without needing the AI."""
+    if user["profile"]["gender"] != "male":
+        return _check("gender_eligibility", "pass", "Not a male user.")
+    text = _norm(post["text"])
+    for phrase in WOMEN_ONLY_PHRASES:
+        if phrase in text:
+            return _check("gender_eligibility", "fail",
+                          f"Rejected because the post says \"{phrase}\" (a women's apartment) and the configured user is male.")
+    return _check("gender_eligibility", "pass", "No women-only phrase.")
+
+
 def check_gender(facts, user, post_text):
     rm = facts["roommates"]
     gender = user["profile"]["gender"]
@@ -166,7 +181,8 @@ def pre_ai_rejection(db, post, user, now):
     run_checks() would reach afterwards (same checks, same order). Returns the failing
     check, or None.
     """
-    for check in (check_duplicate(db, post, user["listing"]["max_post_age_days"], now), check_post_age(post, user, now)):
+    for check in (check_duplicate(db, post, user["listing"]["max_post_age_days"], now), check_post_age(post, user, now),
+                  check_women_only_phrase(post, user)):
         if check["status"] == "fail":
             return check
     return None
@@ -177,6 +193,7 @@ def run_checks(db, post, facts, user, now):
     return [
         check_duplicate(db, post, user["listing"]["max_post_age_days"], now),
         check_post_age(post, user, now),
+        check_women_only_phrase(post, user),
         check_rental_offer(facts),
         check_listing_type(facts, user),
         check_gender(facts, user, post["text"]),
