@@ -7,6 +7,14 @@ from apartment_bot import commute, feed, statuses, transit
 
 
 @pytest.fixture(autouse=True)
+def street_addresses(db):
+    with db:   # the listings in these tests have an exact address (a bare city or neighborhood gets no route)
+        for pid in ("1001", "1002"):
+            db.execute("INSERT INTO post_location (post_id, user_id, location, updated_at) VALUES (?, 'me', ?, 'x')",
+                       (pid, "Florentin 5, Tel Aviv"))
+
+
+@pytest.fixture(autouse=True)
 def no_real_planner(monkeypatch):
     monkeypatch.setattr(transit, "available", lambda: False)   # these tests use the model fallback
 
@@ -34,7 +42,7 @@ def test_estimate_is_stored_and_shown_on_the_card(db, cfg):
     assert got["minutes"] == 45 and got["within_limit"] is True and got["scooter"] and got["scooter_minutes"] == 6
     stage, model, content = r.calls[0]
     assert (stage, model) == ("commute", "claude-sonnet-5-5") and "שער יפו/באר יעקב" in content and "Florentin" in content
-    assert "08:30" in content and got["arrive_by"] == "08:30"
+    assert "08:30" in content and got["arrive_by"] == "08:30" and "Florentin 5" in content
     c = feed.post_detail(db, cfg, "me", "1001")["commutes"][0]
     assert c["route"].startswith("הליכה") and (c["station"], c["walk_minutes"]) == ("תחנת השלום", 7)
     commute.check(db, cfg, u, r, "1001")                       # already estimated for this destination and time: no new call
@@ -81,3 +89,18 @@ def test_old_single_destination_config_still_works(cfg):
     u["commute"]["destination"] = {"name": "Azrieli", "address": None}
     u["commute"]["absolute_max_minutes"] = 50
     assert commute.settings(u)["destinations"][0]["max_minutes"] == 50
+
+
+def test_a_city_or_neighborhood_is_too_broad_and_an_edited_address_is_used(db, cfg):
+    u, r = _user(cfg), FakeRouter(45)
+    assert commute.check(db, cfg, u, r, "1003") == [] and not r.calls     # no street in the post: no route
+    with db:
+        db.execute("INSERT INTO post_location (post_id, user_id, location, updated_at) VALUES ('1003', 'me', 'Dizengoff 50, Tel Aviv', 'x')")
+    got = commute.check(db, cfg, u, r, "1003")
+    assert len(got) == 1 and got[0]["from"] == "Dizengoff 50, Tel Aviv" and "Dizengoff 50" in r.calls[0][2]
+    with db:
+        db.execute("UPDATE post_location SET location = 'Allenby 10, Tel Aviv' WHERE post_id = '1003'")
+    assert commute.check(db, cfg, u, r, "1003")[0]["from"] == "Allenby 10, Tel Aviv" and len(r.calls) == 2
+    with db:
+        db.execute("DELETE FROM post_location WHERE post_id = '1003'")
+    assert commute.check(db, cfg, u, r, "1003") == []                      # back to a broad location: estimate dropped

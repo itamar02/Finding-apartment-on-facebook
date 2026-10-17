@@ -90,16 +90,31 @@ def check(db, cfg, user, router, post_id, force=False):
     if not card:
         return []
     place = _location_text(card)
-    if not place:
+    if not place or not is_precise(card):
+        _forget(db, user["id"], post_id)     # a city or neighborhood is too broad for a route
         return []
     from_text = card["location"].get("text") or place
     have = {c["destination"]: c for c in card["commutes"]}
     for d in s["destinations"]:
         old = have.get(d["name"])
-        if old and not force and old["arrive_by"] == d["arrive_by"] and old["days"] == d["days"]:
+        if (old and not force and old["arrive_by"] == d["arrive_by"] and old["days"] == d["days"]
+                and old["from"] == from_text):      # a changed address (or time) is a new question
             continue
-        _estimate(db, user, router, post_id, place, d, s["model"], from_text)
+        if _estimate(db, user, router, post_id, place, d, s["model"], from_text) == "broad":
+            _forget(db, user["id"], post_id)
+            return []
     return feed.commutes(db, user["id"], post_id)
+
+
+def is_precise(card):
+    """Only a street (from the post) or an address I typed is worth a route; a city or neighborhood is not."""
+    street = ((card.get("facts") or {}).get("street") or "").strip()
+    return bool(street) or bool(card["location"].get("mine"))
+
+
+def _forget(db, user_id, post_id):
+    with db:
+        db.execute("DELETE FROM post_commute WHERE post_id = ? AND user_id = ?", (post_id, user_id))
 
 
 def _estimate_transit(db, user, post_id, place, d):
@@ -113,6 +128,8 @@ def _estimate_transit(db, user, post_id, place, d):
         return None
     if not r:
         return None
+    if r.get("broad"):
+        return "broad"
     ok = None if not d["max_minutes"] else int(r["minutes"] <= d["max_minutes"])
     with db:
         db.execute(
@@ -126,8 +143,9 @@ def _estimate_transit(db, user, post_id, place, d):
 
 
 def _estimate(db, user, router, post_id, place, d, model, from_text=None):
-    if _estimate_transit(db, user, post_id, from_text or place, d):
-        return
+    done = _estimate_transit(db, user, post_id, from_text or place, d)
+    if done:
+        return done
     when = (f"Arrive by {d['arrive_by']} on {DAY_TEXT.get(d['days'], d['days'])}." if d["arrive_by"]
             else f"Plan for {DAY_TEXT.get(d['days'], d['days'])}, mid-morning, outside rush hour.")
     content = (f"Destination: {d['name']}" + (f" ({d['address']})" if d["address"] and d["address"] != d["name"] else "")
@@ -144,7 +162,7 @@ def _estimate(db, user, router, post_id, place, d, model, from_text=None):
             "INSERT OR REPLACE INTO post_commute (post_id, user_id, destination, from_place, minutes, within_limit,"
             " route, uses_scooter, scooter_minutes, confidence, model, cost_usd, checked_at, station, walk_minutes,"
             " arrive_by, days) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (post_id, user["id"], d["name"], r["from_place"], minutes, ok, r["route"].strip(),
+            (post_id, user["id"], d["name"], from_text or r["from_place"], minutes, ok, r["route"].strip(),
              int(r["uses_scooter"]), r["scooter_minutes"] if r["uses_scooter"] else None, r["confidence"],
              model, cost, statuses.now_iso(), station,
              r["walk_minutes"] if r["walk_minutes"] and r["walk_minutes"] > 0 and station else None,

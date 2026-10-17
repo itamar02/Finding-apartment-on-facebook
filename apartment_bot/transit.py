@@ -210,6 +210,8 @@ def estimate(db, place, dest, arrive_by, days):
         target = geocode(db, dest.get("address") or dest["name"])
     if not origin or not target:
         return None
+    if origin[2] != "street":          # only the middle of a city or neighborhood: a route would be meaningless
+        return {"broad": True}
     ensure_server()
     when = datetime.combine(next_date(days), datetime.strptime(arrive_by or "10:00", "%H:%M").time())
     best = None

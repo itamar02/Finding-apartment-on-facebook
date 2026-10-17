@@ -312,6 +312,8 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
                            " VALUES (?,?,?,?)", (post_id, uid, text, statuses.now_iso()))
             else:
                 db.execute("DELETE FROM post_location WHERE post_id = ? AND user_id = ?", (post_id, uid))
+        commute.check_in_background(cfg, get_user(cfg, uid), lambda: dbmod.connect(db_path, check_same_thread=False),
+                                    _router, [post_id])      # the trip is estimated from the address I just wrote
         card = feed.post_detail(db, cfg, uid, post_id)
         return {"location": card["location"]}
 
