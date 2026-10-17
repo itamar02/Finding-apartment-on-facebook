@@ -89,6 +89,8 @@ export interface Commute {
   scooter: boolean;
   scooter_minutes: number | null;
   confidence: "low" | "medium" | "high" | null;
+  station: string | null;
+  walk_minutes: number | null;
   destination: string;
   from: string | null;
   checked_at: string;

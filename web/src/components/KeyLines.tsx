@@ -232,6 +232,7 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
           </div>
           {commute?.route && (
             <div className="small muted keyhints" dir="auto">
+              {commute.station && commute.walk_minutes ? `🚶 ${commute.walk_minutes} דק׳ ל${commute.station} · ` : ""}
               {commute.from ? `מ${commute.from}: ` : ""}
               {commute.route}
             </div>

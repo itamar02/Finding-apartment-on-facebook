@@ -22,6 +22,8 @@ SCHEMA = _obj({
     "uses_scooter": {"type": "boolean"},
     "scooter_minutes": _INT,
     "confidence": _enum("low", "medium", "high"),
+    "station": _TEXT,
+    "walk_minutes": _INT,
 })
 
 SYSTEM = """You estimate commute times in Israel for someone choosing an apartment.
@@ -41,6 +43,7 @@ which one in the route. A destination that is a landmark or a station: go to its
 - from_place: the place you started from, in a few words (the street if known, else the neighborhood).
 - If the location is only a city or too vague, still give an estimate for the middle of the area, \
 confidence low. If there is no usable location at all, minutes = 0 and confidence low, route explains.
+- station: the public-transport station or stop nearest to the apartment that the trip actually starts from (Hebrew name, e.g. "תחנת רכבת השלום" or "קו 18 ברחוב אלנבי"); walk_minutes: the walk from the apartment to it. Give them only when the location names a street (or an exact place); otherwise station = "" and walk_minutes = 0.
 - route: Hebrew, at most two short sentences, the legs with approximate minutes, e.g. \
 "הליכה 7 דק׳ → רכבת קלה אדום → קו 5 → הליכה 4 דק׳". No introduction.
 - Be honest: confidence high only when the places and lines are clear to you."""
@@ -88,10 +91,12 @@ def check(db, cfg, user, router, post_id, force=False):
     with db:
         db.execute(
             "INSERT OR REPLACE INTO post_commute (post_id, user_id, destination, from_place, minutes, within_limit,"
-            " route, uses_scooter, scooter_minutes, confidence, model, cost_usd, checked_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " route, uses_scooter, scooter_minutes, confidence, model, cost_usd, checked_at, station, walk_minutes)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (post_id, user["id"], s["destination"], r["from_place"], minutes, ok, r["route"].strip(),
              int(r["uses_scooter"]), r["scooter_minutes"] if r["uses_scooter"] else None, r["confidence"],
-             s["model"], cost, statuses.now_iso()))
+             s["model"], cost, statuses.now_iso(), (r["station"] or "").strip() or None,
+             r["walk_minutes"] if r["walk_minutes"] and r["walk_minutes"] > 0 and (r["station"] or "").strip() else None))
     return feed.post_detail(db, cfg, user["id"], post_id)["commute"]
 
 

@@ -11,7 +11,8 @@ class FakeRouter:
     def json_call(self, stage, system, content, schema, model=None):
         self.calls.append((stage, model, content))
         return json.dumps({"from_place": "פלורנטין", "minutes": self.minutes, "route": "הליכה 5 דק׳ → קו 18",
-                           "uses_scooter": self.scooter, "scooter_minutes": 6, "confidence": "medium"}), {}, 0.01, "fake"
+                           "uses_scooter": self.scooter, "scooter_minutes": 6, "confidence": "medium",
+                           "station": "תחנת השלום", "walk_minutes": 7}), {}, 0.01, "fake"
 
 
 def _user(cfg, name="שער יפו/באר יעקב", limit=60):
@@ -27,7 +28,8 @@ def test_estimate_is_stored_and_shown_on_the_card(db, cfg):
     assert got["minutes"] == 45 and got["within_limit"] is True and got["scooter"] and got["scooter_minutes"] == 6
     stage, model, content = r.calls[0]
     assert (stage, model) == ("commute", "claude-sonnet-5-5") and "שער יפו/באר יעקב" in content and "Florentin" in content
-    assert feed.post_detail(db, cfg, "me", "1001")["commute"]["route"].startswith("הליכה")
+    c = feed.post_detail(db, cfg, "me", "1001")["commute"]
+    assert c["route"].startswith("הליכה") and (c["station"], c["walk_minutes"]) == ("תחנת השלום", 7)
     commute.check(db, cfg, u, r, "1001")                       # already estimated for this destination: no new call
     assert len(r.calls) == 1
     commute.check(db, cfg, u, r, "1001", force=True)

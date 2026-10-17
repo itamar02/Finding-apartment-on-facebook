@@ -382,6 +382,11 @@ MIGRATIONS = [
         PRIMARY KEY (post_id, user_id)
     );
     """,
+    # 15 -> 16: the nearest station / stop on the trip and the walk to it (known when the post names a street).
+    """
+    ALTER TABLE post_commute ADD COLUMN station TEXT;
+    ALTER TABLE post_commute ADD COLUMN walk_minutes INTEGER;
+    """,
 ]
 
 # A post's current text: its latest version if it was edited, else the text first seen.
