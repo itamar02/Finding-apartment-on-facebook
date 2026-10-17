@@ -129,7 +129,8 @@ def geocode_place(db, text):
         hit = geocode(db, t)
         if hit:
             lat, lon, precision = hit
-            return (lat, lon, precision if parts and t.startswith(parts[0]) else "area")
+            first = parts[0][5:] if parts and parts[0].startswith("רחוב ") else (parts[0] if parts else "")
+            return (lat, lon, precision if first and t.startswith(first) or t.startswith("רחוב " + first) else "area")
     return None
 
 

@@ -29,7 +29,8 @@ def main():
     db, _ = dbmod.migrate()
     router = providers.Router(db, cfg, lambda: anthropic.Anthropic(api_key=key))
     ids = commute.approved_without_estimate(db, user["id"], dest)[:args.limit]
-    print(f"{len(ids)} approved listings without an estimate for: {" / ".join(dest).encode('unicode_escape').decode()}")
+    names = " / ".join(dest).encode("unicode_escape").decode()
+    print(f"{len(ids)} approved listings without an estimate for: {names}")
     done = 0
     for pid in ids:
         try:
