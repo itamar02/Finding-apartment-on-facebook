@@ -495,6 +495,17 @@ check each provider's page.
 `python app_server.py --insecure-cookie` in one terminal and `cd web && npm run dev` in
 another; open http://localhost:5173. Tests: `python -m pytest`.
 
+### Travel time to my destination
+
+Once a listing is approved (by me or by an AI chat), a stronger model (`commute.model`, default
+`claude-sonnet-5-5`) estimates the door-to-door trip by public transport to `commute.destination.name`
+in `config.yaml`, with a rental scooter (Lime and the like) allowed for part of it. "A/B" in the name
+means either place. It shows on the listing as "נסיעה: ~45 דק׳ ל…", red when over
+`commute.absolute_max_minutes`, with the route underneath; the 🔄 button re-estimates it (for example after
+you fix the location). It is an estimate (the model has no live timetable), stored in `post_commute`, about
+a cent per listing. Leave the destination blank to turn it off. Listings approved before this existed:
+`POST /api/commute/backfill` (or approve the next batch from an AI chat).
+
 ## Configuration
 
 All user-specific values live in `config.yaml`, created by copying the committed template

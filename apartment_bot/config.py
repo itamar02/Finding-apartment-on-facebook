@@ -61,6 +61,8 @@ def _validate_user(u):
         _require(u, f"features.{key}", list)
     # Commute values are not used by any stage yet, so all of them may be blank.
     _require(u, "commute.destination.name", str, optional=True)
+    if "model" in u["commute"]:   # optional: the model for the commute estimate
+        _require(u, "commute.model", str, optional=True)
     for key in ("preferred_max_minutes", "absolute_max_minutes", "preferred_max_walking_minutes",
                 "preferred_max_transfers"):
         _require(u, f"commute.{key}", num, optional=True)

@@ -197,9 +197,13 @@ class Router:
             return None
         return OpenAICompatProvider(self.confs[pid], self.keys[pid], self.opener)
 
-    def json_call(self, stage, system_blocks, user_content, schema):
-        """(raw_text, usage, cost, label). raw_text is valid JSON for the schema."""
-        primary = self._provider(stage)
+    def json_call(self, stage, system_blocks, user_content, schema, model=None):
+        """(raw_text, usage, cost, label). raw_text is valid JSON for the schema.
+
+        model: use this Anthropic model for the call (e.g. a stronger one for one stage) instead of
+        the configured app.ai_model, and skip the other providers.
+        """
+        primary = None if model else self._provider(stage)
         if primary:
             try:
                 self._limiter(primary.id, self.confs[primary.id]).acquire()
@@ -218,7 +222,7 @@ class Router:
                 self.notes.append(f"{e}; used Anthropic")
         RateLimiter(self.db, ANTHROPIC, self.anthropic_limits.get("per_minute"),
                     self.anthropic_limits.get("per_day"), **({"sleep": self.sleep} if self.sleep else {})).acquire()
-        a = self.anthropic()
+        a = AnthropicProvider(self.anthropic().client, model) if model else self.anthropic()
         text, usage, cost = a.call(system_blocks, user_content, schema)
         return text, usage, cost, a.label
 

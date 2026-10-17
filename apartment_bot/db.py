@@ -363,6 +363,25 @@ MIGRATIONS = [
         PRIMARY KEY (post_id, user_id)
     );
     """,
+    # 14 -> 15: the stronger model's estimate of the trip to the configured destination (approved listings only).
+    """
+    CREATE TABLE post_commute (
+        post_id       TEXT NOT NULL,
+        user_id       TEXT NOT NULL,
+        destination   TEXT NOT NULL,
+        from_place    TEXT,                -- the place the estimate started from
+        minutes       INTEGER,             -- door to door, null when it could not be estimated
+        within_limit  INTEGER,             -- 1 / 0 against commute.absolute_max_minutes, null if unknown
+        route         TEXT,
+        uses_scooter  INTEGER NOT NULL DEFAULT 0,
+        scooter_minutes INTEGER,
+        confidence    TEXT,                -- low | medium | high
+        model         TEXT,
+        cost_usd      REAL,
+        checked_at    TEXT NOT NULL,
+        PRIMARY KEY (post_id, user_id)
+    );
+    """,
 ]
 
 # A post's current text: its latest version if it was edited, else the text first seen.

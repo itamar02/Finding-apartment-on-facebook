@@ -1157,3 +1157,6 @@ button.badge {
 .price-note-input {
   margin-top: 6px;
 }
+
+.commute-ok { color: var(--pass); }
+.commute-bad { color: var(--reject); }

@@ -18,7 +18,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-from . import (auth, config_edit, pipeline, db as dbmod, feed, followups, gcal, gpt_io, groups as groups_mod, learning,
+from . import (auth, commute, config_edit, pipeline, db as dbmod, feed, followups, gcal, gpt_io, groups as groups_mod, learning,
                meetings, notify, prices, providers, settings, statuses, visits)
 from .config import ConfigError, get_api_key
 from .ratelimit import RateLimiter
@@ -251,6 +251,35 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
             "SELECT id, kind, seen_at, text FROM post_versions WHERE post_id = ? ORDER BY id", (post_id,))]
         return card
 
+    def _commute_if_approved(post_id, status):
+        """An approved listing gets the stronger model's travel-time estimate, in the background."""
+        if status in commute.APPROVED:
+            commute.check_in_background(cfg, get_user(cfg, uid), lambda: dbmod.connect(db_path, check_same_thread=False),
+                                        _router, [post_id])
+
+    @app.post("/api/posts/{post_id}/commute")
+    def post_commute(post_id: str, db=Depends(get_db)):
+        """(Re)estimate the trip to the configured destination now; waits for the model."""
+        if not commute.settings(get_user(cfg, uid))["destination"]:
+            raise HTTPException(400, "no destination: set commute.destination.name in config.yaml")
+        try:
+            result = commute.check(db, cfg, get_user(cfg, uid), _router(db), post_id, force=True)
+        except ConfigError as e:
+            raise HTTPException(400, f"AI key: {e}")
+        except Exception as e:
+            raise HTTPException(502, f"the model could not estimate it: {e}")
+        if result is None:
+            raise HTTPException(400, "this listing has no location to start from: add one with the pencil next to the location")
+        return {"commute": result}
+
+    @app.post("/api/commute/backfill")
+    def commute_backfill(db=Depends(get_db)):
+        """Estimate every approved listing that has none yet (background)."""
+        user = get_user(cfg, uid)
+        ids = commute.approved_without_estimate(db, uid, commute.settings(user)["destination"])[:60]
+        commute.check_in_background(cfg, user, lambda: dbmod.connect(db_path, check_same_thread=False), _router, ids)
+        return {"started": len(ids)}
+
     def _status_result(db, post_id, old):
         return {"previous": old, "status": statuses.current(db, uid, post_id)}
 
@@ -260,6 +289,7 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
             old, _ = statuses.set_status(db, uid, post_id, body.status, body.note, "human")
         except statuses.StatusError as e:
             raise HTTPException(400, str(e))
+        _commute_if_approved(post_id, body.status)
         return _status_result(db, post_id, old)
 
     @app.post("/api/posts/{post_id}/status/undo")
@@ -347,6 +377,7 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
             old, _ = statuses.set_status(db, uid, post_id, "contacted", None, "human")
         except statuses.StatusError as e:
             raise HTTPException(400, str(e))
+        _commute_if_approved(post_id, "contacted")
         return _status_result(db, post_id, old)
 
     # --- notes ----------------------------------------------------------------------------------
@@ -500,7 +531,11 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
 
     @app.post("/api/gpt/apply")
     def gpt_apply(body: ReplyIn, db=Depends(get_db)):
-        return gpt_io.apply(db, uid, body.text, override_human=body.override_human)
+        result = gpt_io.apply(db, uid, body.text, override_human=body.override_human)
+        user = get_user(cfg, uid)
+        commute.check_in_background(cfg, user, lambda: dbmod.connect(db_path, check_same_thread=False), _router,
+                                    commute.approved_without_estimate(db, uid, commute.settings(user)["destination"])[:60])
+        return result
 
     # --- background scheduler -------------------------------------------------------------------
 

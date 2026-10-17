@@ -25,9 +25,14 @@ SELECT p.post_id, p.group_id, p.author, p.author_id, p.posted_at, {text} AS text
        s.status, s.note AS status_note, s.source AS status_source, s.updated_at AS status_updated_at,
        (SELECT count(*) FROM post_notes n WHERE n.post_id = p.post_id AND n.user_id = :user) AS notes_count,
        l.location AS my_location, pr.rent_ils AS my_rent, pb.bills AS my_bills,
-       mt.meeting_at AS meeting_at, mt.address AS meeting_address, pn.note AS price_note
+       mt.meeting_at AS meeting_at, mt.address AS meeting_address, pn.note AS price_note,
+       pc.minutes AS commute_minutes, pc.within_limit AS commute_ok, pc.route AS commute_route,
+       pc.uses_scooter AS commute_scooter, pc.scooter_minutes AS commute_scooter_min,
+       pc.confidence AS commute_confidence, pc.destination AS commute_destination,
+       pc.from_place AS commute_from, pc.checked_at AS commute_checked_at
 FROM posts p
 LEFT JOIN post_price_note pn ON pn.post_id = p.post_id AND pn.user_id = :user
+LEFT JOIN post_commute pc ON pc.post_id = p.post_id AND pc.user_id = :user
 LEFT JOIN post_meeting mt ON mt.post_id = p.post_id AND mt.user_id = :user
 LEFT JOIN post_bills pb ON pb.post_id = p.post_id AND pb.user_id = :user
 LEFT JOIN post_location l ON l.post_id = p.post_id AND l.user_id = :user
@@ -182,6 +187,11 @@ def _card(r, facts, contact, names, template):
         "location": location_info(facts, r["my_location"]),
         "bills": bills_info(facts, r["my_bills"]),
         "price_note": r["price_note"],
+        "commute": None if r["commute_checked_at"] is None else {
+            "minutes": r["commute_minutes"], "within_limit": None if r["commute_ok"] is None else bool(r["commute_ok"]),
+            "route": r["commute_route"], "scooter": bool(r["commute_scooter"]), "scooter_minutes": r["commute_scooter_min"],
+            "confidence": r["commute_confidence"], "destination": r["commute_destination"],
+            "from": r["commute_from"], "checked_at": r["commute_checked_at"]},
         "meeting": {"at": r["meeting_at"], "address": r["meeting_address"]} if r["meeting_at"] else None,
         "price": {"rent": (facts or {}).get("rent_ils"), "total": (facts or {}).get("total_monthly_ils_known"),
                   "mine": bool((facts or {}).get("_rent_mine")), "ai_rent": (facts or {}).get(

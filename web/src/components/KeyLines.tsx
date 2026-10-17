@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { api, Card } from "../api";
+import { api, Card, Commute } from "../api";
 import { useApp } from "../App";
-import { money } from "../format";
+import { isApproved, money } from "../format";
 
 /** Puts " ₪" after every number that doesn't have a shekel sign yet (a price note is mostly amounts). */
 export function addShekel(text: string): string {
@@ -19,6 +19,8 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
   const [bills, setBills] = useState(card.bills);
   const [billsDraft, setBillsDraft] = useState<"included" | "excluded" | null>(null);
   const [note, setNote] = useState(card.price_note);
+  const [commute, setCommute] = useState<Commute | null>(card.commute);
+  const [checking, setChecking] = useState(false);
   const [editingPrice, setEditingPrice] = useState(false);
   const [textDraft, setTextDraft] = useState("");
   const rent = money(price.rent);
@@ -47,6 +49,17 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
       app.toast({ text: value || noteValue || billsValue ? "המחיר עודכן" : "חזר למחיר מהמודעה" });
     } catch (e) {
       app.fail(e);
+    }
+  }
+
+  async function checkCommute() {
+    setChecking(true);
+    try {
+      setCommute((await api.checkCommute(card.post_id)).commute);
+    } catch (e) {
+      app.fail(e);
+    } finally {
+      setChecking(false);
     }
   }
 
@@ -163,15 +176,16 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
               {note ? note : rent ? (total ? `${rent} (סה״כ ${total} עם הוצאות)` : rent) : "לא צוין"}
               {(price.mine || note) && <span className="tag mine">עודכן ידנית</span>}
               {(price.mine || note) && price.ai_rent && price.ai_rent !== price.rent && <span className="small muted"> (במודעה: {money(price.ai_rent)})</span>}
-              {rent && (!note || bills.mine) && (
+              {rent && (!note || bills.mine) && !(bills.state === "excluded" && (total || bills.extras.length > 0)) && (
                 <span className={"bills " + bills.state}>
                   {" · "}
                   {BILL_TEXT[bills.state]}
                   {bills.mine && " (עודכן ידנית)"}
                 </span>
               )}
+              {/* "not including bills" is clear from the total and the amounts, so it is not spelled out */}
               {rent && !note && bills.state === "excluded" && bills.extras.length > 0 && (
-                <span className="small muted"> ({bills.extras.map((e) => `${KIND[e.kind] ?? e.kind} ${e.amount.toLocaleString("he-IL")} ₪`).join(", ")})</span>
+                <span className="small muted"> · {bills.extras.map((e) => `${KIND[e.kind] ?? e.kind} ${e.amount.toLocaleString("he-IL")} ₪`).join(", ")}</span>
               )}
             </span>
             <button
@@ -189,6 +203,41 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
           </>
         )}
       </div>
+      {(commute || isApproved(card.status?.status)) && (
+        <>
+          <div className="keyline">
+            <span className="key">נסיעה:</span>
+            <span className="grow" dir="auto">
+              {commute ? (
+                commute.minutes ? (
+                  <>
+                    <b className={commute.within_limit === false ? "commute-bad" : commute.within_limit ? "commute-ok" : ""}>
+                      ~{commute.minutes} דק׳
+                    </b>
+                    {" ל"}
+                    {commute.destination}
+                    {commute.scooter && <span title="כולל קורקינט שכור"> 🛴{commute.scooter_minutes ? ` ${commute.scooter_minutes} דק׳` : ""}</span>}
+                    <span className="small muted"> · הערכה{commute.confidence === "low" ? " לא בטוחה" : ""}</span>
+                  </>
+                ) : (
+                  <span className="muted">לא הצלחתי להעריך (אין מיקום ברור)</span>
+                )
+              ) : (
+                <span className="muted">עוד לא נבדק</span>
+              )}
+            </span>
+            <button className="icon small-icon" aria-label="בדיקת זמן נסיעה" title={commute ? "בדיקה מחדש" : "בדוק עכשיו"} disabled={checking} onClick={checkCommute}>
+              {checking ? "…" : "🔄"}
+            </button>
+          </div>
+          {commute?.route && (
+            <div className="small muted keyhints" dir="auto">
+              {commute.from ? `מ${commute.from}: ` : ""}
+              {commute.route}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

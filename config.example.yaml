@@ -112,12 +112,16 @@ users:
       latest: null
 
     commute:
-      # Stored for a later commute stage; not used for filtering yet. All values may be null.
+      # After you approve a listing, a stronger model estimates the door-to-door trip to the destination
+      # by public transport (a rental scooter may be used for part of it) and shows it on the listing.
+      # "A/B" in the name = either place. It is an estimate: the model has no live timetable.
+      # Leave destination.name blank to turn this off.
       destination:
-        name: null
+        name: null                 # e.g. "Azrieli Center, Tel Aviv"
         address: null
+      model: claude-sonnet-5-5     # claude-opus-5-5 is stronger and about twice the price
       preferred_max_minutes: null
-      absolute_max_minutes: null
+      absolute_max_minutes: null   # listings whose trip is longer are marked red
       preferred_max_walking_minutes: null
       preferred_max_transfers: null
       modes: [public_transit]
