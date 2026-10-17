@@ -7,6 +7,18 @@ _PHONE_RUN = re.compile(r"(?<![\d/])(?:\+?972|0)[\d\-\s.]{7,14}\d(?!\d)")
 _WHATSAPP = re.compile(r"(?:https?://)?(?:wa\.me/|api\.whatsapp\.com/send/?\?phone=)\+?(\d{8,13})", re.I)
 
 
+_LEADING_O = re.compile(r"(?<![A-Za-z])[Oo](?=\d\d)")
+_MIDDLE_O = re.compile(r"(?<=[\d\-])[Oo](?=[\d\-])|(?<=\d)[Oo](?=\s|$)")
+
+
+def _o_to_zero(text):
+    """People type the letter O for the digit 0 ("O52-883O311"): read it as a zero when it sits inside a number."""
+    text = _LEADING_O.sub("0", text or "")
+    for _ in range(3):    # "O5O-" style runs need more than one pass
+        text = _MIDDLE_O.sub("0", text)
+    return text
+
+
 def _normalize(digits):
     """Return an Israeli number as 05X-XXXXXXX / 0X-XXXXXXX, or None if not valid."""
     if digits.startswith("972"):
@@ -23,7 +35,7 @@ def _normalize(digits):
 def phones_in_text(text):
     """Distinct phone numbers mentioned in the text, in order of appearance."""
     found = []
-    for m in _PHONE_RUN.finditer(text or ""):
+    for m in _PHONE_RUN.finditer(_o_to_zero(text)):
         num = _normalize(re.sub(r"\D", "", m.group(0)))
         if num and num not in found:
             found.append(num)
@@ -38,7 +50,7 @@ def suspect_phones(text):
     then offers WhatsApp for it, clearly marked as a guess, and never sends anything itself.
     """
     out = []
-    for m in _PHONE_RUN.finditer(text or ""):
+    for m in _PHONE_RUN.finditer(_o_to_zero(text)):
         digits = re.sub(r"\D", "", m.group(0))
         if _normalize(digits) or len(digits) not in (9, 11, 12):
             continue

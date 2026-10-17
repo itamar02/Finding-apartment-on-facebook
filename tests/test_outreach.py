@@ -48,3 +48,10 @@ def test_no_guess_when_the_fix_is_ambiguous_or_there_is_none():
     assert _contact("טלפון 05-123456")["suspect"] == []                       # 8 digits: not a typo of one digit
     assert outreach.contact_action(_contact("טלפון 05-123456"), "x")["kind"] == "facebook"
     assert "guessed" not in outreach.contact_action(_contact("טלפון 054-563-4144"), "x")   # a valid number is not a guess
+
+
+def test_letter_o_typed_for_zero_in_a_phone_number():
+    from apartment_bot.contacts import phones_in_text
+    assert phones_in_text("דברו עם יונתן: O52-883O311 תודה") == ["052-8830311"]
+    assert phones_in_text("050-123O456") == ["050-1230456"]
+    assert phones_in_text("Option 2 of 3 rooms in Orange street") == []
