@@ -1,7 +1,14 @@
 """The stronger model's trip estimate for approved listings."""
 import json
 
-from apartment_bot import commute, feed, statuses
+import pytest
+
+from apartment_bot import commute, feed, statuses, transit
+
+
+@pytest.fixture(autouse=True)
+def no_real_planner(monkeypatch):
+    monkeypatch.setattr(transit, "available", lambda: False)   # these tests use the model fallback
 
 
 class FakeRouter:
