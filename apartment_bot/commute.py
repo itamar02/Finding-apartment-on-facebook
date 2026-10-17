@@ -61,7 +61,8 @@ def settings(user):
         name = (d.get("name") or d.get("address") or "").strip()
         dests = [{"name": name, "address": d.get("address"), "max_minutes": c.get("absolute_max_minutes")}] if name else []
     out = [{"name": d["name"].strip(), "address": (d.get("address") or "").strip(), "max_minutes": d.get("max_minutes"),
-            "arrive_by": d.get("arrive_by"), "days": d.get("days") or "weekdays"} for d in dests if (d.get("name") or "").strip()]
+            "arrive_by": d.get("arrive_by"), "days": d.get("days") or "weekdays",
+            "lat": d.get("lat"), "lon": d.get("lon")} for d in dests if (d.get("name") or "").strip()]
     return {"destinations": out, "model": c.get("model") or DEFAULT_MODEL}
 
 
@@ -91,16 +92,42 @@ def check(db, cfg, user, router, post_id, force=False):
     place = _location_text(card)
     if not place:
         return []
+    from_text = card["location"].get("text") or place
     have = {c["destination"]: c for c in card["commutes"]}
     for d in s["destinations"]:
         old = have.get(d["name"])
         if old and not force and old["arrive_by"] == d["arrive_by"] and old["days"] == d["days"]:
             continue
-        _estimate(db, user, router, post_id, place, d, s["model"])
+        _estimate(db, user, router, post_id, place, d, s["model"], from_text)
     return feed.commutes(db, user["id"], post_id)
 
 
-def _estimate(db, user, router, post_id, place, d, model):
+def _estimate_transit(db, user, post_id, place, d):
+    """The real thing: the Ministry of Transport timetable through the local planner. None = not possible."""
+    from . import transit
+    if not transit.available():
+        return None
+    try:
+        r = transit.estimate(db, place, d, d["arrive_by"], d["days"])
+    except transit.TransitError:
+        return None
+    if not r:
+        return None
+    ok = None if not d["max_minutes"] else int(r["minutes"] <= d["max_minutes"])
+    with db:
+        db.execute(
+            "INSERT OR REPLACE INTO post_commute (post_id, user_id, destination, from_place, minutes, within_limit,"
+            " route, uses_scooter, scooter_minutes, confidence, model, cost_usd, checked_at, station, walk_minutes,"
+            " arrive_by, days) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (post_id, user["id"], d["name"], place, r["minutes"], ok, r["route"], int(r["scooter"]),
+             r["scooter_minutes"], "high" if r["precision"] == "street" else "medium", "timetable", 0.0,
+             statuses.now_iso(), r["station"], r["walk_minutes"], d["arrive_by"], d["days"]))
+    return True
+
+
+def _estimate(db, user, router, post_id, place, d, model, from_text=None):
+    if _estimate_transit(db, user, post_id, from_text or place, d):
+        return
     when = (f"Arrive by {d['arrive_by']} on {DAY_TEXT.get(d['days'], d['days'])}." if d["arrive_by"]
             else f"Plan for {DAY_TEXT.get(d['days'], d['days'])}, mid-morning, outside rush hour.")
     content = (f"Destination: {d['name']}" + (f" ({d['address']})" if d["address"] and d["address"] != d["name"] else "")

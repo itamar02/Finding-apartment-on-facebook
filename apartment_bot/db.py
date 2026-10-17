@@ -416,6 +416,17 @@ MIGRATIONS = [
     DROP TABLE post_commute;
     ALTER TABLE post_commute_new RENAME TO post_commute;
     """,
+    # 17 -> 18: addresses already turned into coordinates (Nominatim is polite-use only, so never ask twice).
+    """
+    CREATE TABLE geocode_cache (
+        query     TEXT PRIMARY KEY,
+        lat       REAL,
+        lon       REAL,
+        precision TEXT,                    -- street | area
+        name      TEXT,
+        cached_at TEXT NOT NULL
+    );
+    """,
 ]
 
 # A post's current text: its latest version if it was edited, else the text first seen.

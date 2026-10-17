@@ -49,6 +49,9 @@ def validate_destinations(dests):
         t = d.get("arrive_by")
         if t is not None and not (isinstance(t, str) and re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", t)):
             raise ConfigError(f"{where}.arrive_by must look like 08:30 or be blank")
+        for k in ("lat", "lon"):
+            if d.get(k) is not None and (isinstance(d[k], bool) or not isinstance(d[k], (int, float))):
+                raise ConfigError(f"{where}.{k} must be a number or blank")
         if d.get("days") is not None and d["days"] not in DESTINATION_DAYS:
             raise ConfigError(f"{where}.days must be one of {', '.join(DESTINATION_DAYS)}")
 

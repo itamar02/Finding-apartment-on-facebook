@@ -151,6 +151,22 @@ def recheck_stored(db, user, now=None):
             "hard_rules_json": json.dumps([pre], ensure_ascii=False),
             "input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "cache_write_tokens": 0, "cost_usd": 0.0})
         changed += 1
+    # Posts nobody analyzed yet that the code alone rejects (a women's apartment for a male user): no AI needed.
+    unanalyzed = db.execute(
+        "SELECT p.* FROM posts p WHERE p.text LIKE '%דירת שותפות%' AND NOT EXISTS (SELECT 1 FROM post_analyses a"
+        " WHERE a.post_id = p.post_id AND a.user_id = ? AND a.status = 'ok')", (user["id"],)).fetchall()
+    for post in unanalyzed:
+        check = hard_rules.check_women_only_phrase(post, user)
+        if check["status"] != "fail":
+            continue
+        _insert(db, {
+            "post_id": post["post_id"], "user_id": user["id"], "pipeline_version": ai_filter.PIPELINE_VERSION,
+            "config_hash": user_config_hash(user), "model": "none (code rule)",
+            "analyzed_at": now.isoformat(timespec="seconds"), "status": "ok",
+            "final_decision": "REJECT", "final_rule": check["rule"], "final_reason": check["detail"],
+            "decided_by": "hard_rule", "hard_rules_json": json.dumps([check], ensure_ascii=False),
+            "input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "cache_write_tokens": 0, "cost_usd": 0.0})
+        changed += 1
     # AI rejections that were sent to review only because the code could not find the AI's quote:
     # with the tolerant quote check they become rejections.
     unverified = db.execute(

@@ -95,6 +95,12 @@ def check_value(path, value):
                     raise EditError(f"{path}: the maximum minutes must be a number")
             if d.get("arrive_by"):
                 item["arrive_by"] = str(d["arrive_by"]).strip()
+            for k in ("lat", "lon"):
+                if d.get(k) not in (None, ""):
+                    try:
+                        item[k] = float(d[k])
+                    except (TypeError, ValueError):
+                        raise EditError(f"{path}: {k} must be a number")
             item["days"] = d.get("days") or "weekdays"
             out.append(item)
         try:
