@@ -101,11 +101,20 @@ def check(db, cfg, user, router, post_id, force=False):
 
 
 def approved_without_estimate(db, user_id, destination):
+    """Listings I approved, plus those the AI passed that nobody has closed, that have no estimate yet."""
     marks = ",".join("?" * len(APPROVED))
-    return [r[0] for r in db.execute(
+    rows = db.execute(
         f"SELECT s.post_id FROM post_status s LEFT JOIN post_commute c ON c.post_id = s.post_id AND c.user_id = s.user_id"
         f" AND c.destination = ? WHERE s.user_id = ? AND s.status IN ({marks}) AND c.post_id IS NULL",
-        (destination, user_id, *APPROVED))]
+        (destination, user_id, *APPROVED)).fetchall()
+    rows += db.execute(
+        "SELECT a.post_id FROM post_analyses a LEFT JOIN post_commute c ON c.post_id = a.post_id AND c.user_id = a.user_id"
+        " AND c.destination = ? LEFT JOIN post_status s ON s.post_id = a.post_id AND s.user_id = a.user_id"
+        " WHERE a.user_id = ? AND a.status = 'ok' AND a.final_decision = 'PASS' AND c.post_id IS NULL"
+        " AND coalesce(s.status, '') NOT IN ('not_relevant', 'taken')"
+        " AND a.id = (SELECT max(b.id) FROM post_analyses b WHERE b.post_id = a.post_id AND b.user_id = a.user_id AND b.status = 'ok')",
+        (destination, user_id)).fetchall()
+    return list(dict.fromkeys(r[0] for r in rows))
 
 
 def check_in_background(cfg, user, open_db, router_factory, post_ids):

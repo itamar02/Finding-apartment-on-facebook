@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, Card, Commute } from "../api";
 import { useApp } from "../App";
-import { isApproved, money } from "../format";
+import { money } from "../format";
 
 /** Puts " ₪" after every number that doesn't have a shekel sign yet (a price note is mostly amounts). */
 export function addShekel(text: string): string {
@@ -203,7 +203,7 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
           </>
         )}
       </div>
-      {(commute || isApproved(card.status?.status)) && (
+      {commute && (
         <>
           <div className="keyline">
             <span className="key">נסיעה:</span>
@@ -222,9 +222,7 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
                 ) : (
                   <span className="muted">לא הצלחתי להעריך (אין מיקום ברור)</span>
                 )
-              ) : (
-                <span className="muted">עוד לא נבדק</span>
-              )}
+              ) : null}
             </span>
             <button className="icon small-icon" aria-label="בדיקת זמן נסיעה" title={commute ? "בדיקה מחדש" : "בדוק עכשיו"} disabled={checking} onClick={checkCommute}>
               {checking ? "…" : "🔄"}

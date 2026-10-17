@@ -30,6 +30,22 @@ def _recheck(db, user):
         print(f"Re-checked saved results: {changed} listings are now rejected (duplicate / too old).")
 
 
+def _commute(db, cfg, user, client):
+    """The trip estimate for listings the AI just passed (best effort, a cent each)."""
+    from apartment_bot import commute
+    dest = commute.settings(user)["destination"]
+    if not dest:
+        return
+    done = 0
+    for pid in commute.approved_without_estimate(db, user["id"], dest)[:40]:
+        try:
+            done += bool(commute.check(db, cfg, user, client, pid))
+        except Exception as e:
+            print(f"  trip estimate for {pid} failed: {e}")
+    if done:
+        print(f"Trip estimates added: {done}")
+
+
 def main():
     """Analyze pending posts, print a terminal-safe report and token/cost totals."""
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -146,6 +162,7 @@ def _analyze(db, cfg, user, args, client, model, early_stop, posts):
             print(f"Photos: {pics['downloaded']} downloaded for {pics['posts']} listings"
                   + (f", {pics['failed']} failed (retry with download_pictures.py)" if pics["failed"] else ""))
     _recheck(db, user)
+    _commute(db, cfg, user, client)
     if args.report:
         # Same format as export_results.py, limited to the posts analyzed in this run.
         write_report(build_entries(db, cfg, user["id"], post_ids=[r["post_id"] for r in results]),
