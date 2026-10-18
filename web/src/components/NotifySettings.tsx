@@ -35,6 +35,8 @@ export default function NotifySettings() {
   const [hours, setHours] = useState<Record<string, number>>(s.followup_hours);
   const [appUrl, setAppUrl] = useState(s.app_url ?? "");
   const [sched, setSched] = useState(s.scheduler);
+  // The minutes box is text while typing, so it can be emptied and retyped; the last real number is what gets saved.
+  const [intervalText, setIntervalText] = useState(String(s.scheduler.interval_minutes));
   const [state, setState] = useState<SchedulerState | null>(null);
   const [info, setInfo] = useState<{ telegram: { configured: boolean; from_watchdog: boolean }; push_devices: number } | null>(null);
   const [tg, setTg] = useState({ token: "", chat_id: "" });
@@ -237,7 +239,17 @@ export default function NotifySettings() {
       <label className="check">
         <input type="checkbox" checked={sched.enabled} onChange={(e) => setSched({ ...sched, enabled: e.target.checked })} />
         לסרוק כל
-        <input className="short" inputMode="numeric" value={sched.interval_minutes} onChange={(e) => setSched({ ...sched, interval_minutes: Number(e.target.value.replace(/\D/g, "")) || 30 })} />
+        <input
+          className="short"
+          inputMode="numeric"
+          value={intervalText}
+          onChange={(e) => {
+            const digits = e.target.value.replace(/\D/g, "");
+            setIntervalText(digits);
+            if (digits) setSched({ ...sched, interval_minutes: Math.max(1, Number(digits)) });
+          }}
+          onBlur={() => setIntervalText(String(sched.interval_minutes))}
+        />
         דקות
       </label>
       <label className="check">
