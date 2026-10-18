@@ -102,6 +102,9 @@ def query_posts(db, cfg, user_id, *, decisions=None, statuses_=None, exclude_sta
             continue
         cards.append(_card(r, facts, contact, names, template))
 
+    if post_ids is None:
+        cards = _merge_copies(cards)
+
     if sort == "price_asc":
         cards.sort(key=lambda c: (c["facts"] or {}).get("rent_ils") or 10**9)
     elif sort == "price_desc":
@@ -115,6 +118,27 @@ def query_posts(db, cfg, user_id, *, decisions=None, statuses_=None, exclude_sta
         c["commutes"] = commutes(db, user_id, c["post_id"])
         c["price_history"] = prices.history(db, c["post_id"]) if has_prices else []
     return {"total": len(cards), "items": page}
+
+
+def _merge_copies(cards):
+    """The same ad posted in several groups (identical text) is one card: the one I gave a status, else the newest.
+    card["copies"] lists the other posts (group, link, time) so nothing is lost."""
+    from .hard_rules import text_fingerprint
+    groups = {}
+    for c in cards:
+        groups.setdefault(text_fingerprint(c["text"] or ""), []).append(c)
+    out = []
+    for same in groups.values():
+        if len(same) == 1:
+            same[0]["copies"] = []
+            out.append(same[0])
+            continue
+        newest_first = sorted(same, key=lambda c: (c["posted_at"] or c["first_seen_at"] or "", c["post_id"]), reverse=True)
+        rep = next((c for c in newest_first if c["status"]), newest_first[0])
+        rep["copies"] = [{"post_id": c["post_id"], "group_name": c["group_name"], "url": c["url"], "posted_at": c["posted_at"]}
+                         for c in newest_first if c is not rep]
+        out.append(rep)
+    return out
 
 
 def commutes(db, user_id, post_id):

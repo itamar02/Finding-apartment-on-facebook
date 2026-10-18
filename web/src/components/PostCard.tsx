@@ -74,6 +74,21 @@ export default function PostCard({ card }: { card: Card }) {
         </span>
       </div>
 
+      {(card.copies?.length ?? 0) > 0 && (
+        <div className="small muted" dir="auto">
+          פורסם גם ב-{card.copies!.length} קבוצות נוספות:{" "}
+          {card.copies!.slice(0, 4).map((c, i) => (
+            <span key={c.post_id}>
+              {i > 0 && " · "}
+              <a href={c.url} target="_blank" rel="noreferrer">
+                {c.group_name}
+              </a>
+            </span>
+          ))}
+          {card.copies!.length > 4 && ` · ועוד ${card.copies!.length - 4}`}
+        </div>
+      )}
+
       <MeetingLine card={card} startEditing={askMeeting} onDone={() => setAskMeeting(false)} />
       <KeyLines card={card} />
 

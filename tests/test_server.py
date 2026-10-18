@@ -226,3 +226,18 @@ def test_free_text_note_on_the_price(client):
     assert card()["price"]["rent"] == 5000 and not card()["price"]["mine"]                 # the note alone changes no number
     r = client.put("/api/posts/1001/price", json={"rent": None, "bills": None, "note": ""}, headers=W).json()
     assert r["note"] is None and card()["price_note"] is None
+
+
+def test_the_same_ad_in_several_groups_is_one_card(client, db):
+    with db:
+        for i, group in enumerate(("g1", "g2")):
+            db.execute("INSERT INTO posts (post_id, group_id, author, text, url, posted_at, first_seen_at) VALUES (?,?,?,?,?,?,?)",
+                       (f"dup{i}", group, "Same Person", "חדר להשכרה בדירת 3 שותפים שזה בדיוק אותו טקסט 052-9998877", f"u{i}",
+                        f"2026-10-1{i}T10:00+03:00", f"2026-10-1{i}T10:00+03:00"))
+    items = client.get("/api/posts?include_old=true&limit=100").json()["items"]
+    dups = [c for c in items if c["post_id"] in ("dup0", "dup1")]
+    assert len(dups) == 1 and len(dups[0]["copies"]) == 1
+    assert dups[0]["post_id"] == "dup1"                      # the newest copy stands for the ad
+    client.put("/api/posts/dup0/status", json={"status": "interested"}, headers=W)
+    dups = [c for c in client.get("/api/posts?include_old=true&limit=100").json()["items"] if c["post_id"] in ("dup0", "dup1")]
+    assert [c["post_id"] for c in dups] == ["dup0"]           # the one I gave a status stands for it

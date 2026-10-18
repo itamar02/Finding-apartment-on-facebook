@@ -80,6 +80,7 @@ export interface Card {
   photos: Photos;
   edited: boolean;
   price_history: PricePoint[];
+  copies?: { post_id: string; group_name: string; url: string; posted_at: string | null }[];
 }
 
 export interface Commute {
