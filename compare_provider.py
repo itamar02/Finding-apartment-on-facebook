@@ -29,7 +29,8 @@ def main():
         sys.exit(f"config error: {e}")
     db, _ = dbmod.migrate()
     router = providers.Router(db, cfg, lambda: anthropic.Anthropic(api_key=key))
-    if args.provider not in router.confs or not router.keys.get(args.provider):
+    conf = router.confs.get(args.provider)
+    if not conf or (conf.get("kind") != "claude_code" and not router.keys.get(args.provider)):
         sys.exit(f"Provider {args.provider!r} has no API key yet: save it in the app (Settings > AI providers).")
     router.stages["gate"] = args.provider        # for this run only
 

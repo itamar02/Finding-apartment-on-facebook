@@ -32,6 +32,8 @@ PRESETS = [
      "model": "llama-3.3-70b-versatile", "json_mode": "json_object", "per_minute": 30, "per_day": 1000},
     {"id": "openrouter", "label": "OpenRouter", "base_url": "https://openrouter.ai/api/v1",
      "model": "meta-llama/llama-3.3-70b-instruct:free", "json_mode": "json_object", "per_minute": 20, "per_day": 50},
+    {"id": "claude-code", "label": "Claude (my subscription, via Claude Code)", "kind": "claude_code",
+     "base_url": "claude-code", "model": "haiku", "json_mode": "json_object", "per_minute": 6, "per_day": 400},
     {"id": "gemini", "label": "Gemini", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
      "model": "gemini-2.5-flash", "json_mode": "json_schema", "per_minute": 10, "per_day": 250},
 ]
@@ -117,6 +119,52 @@ class AnthropicProvider:
         return next(b.text for b in response.content if b.type == "text"), usage, cost
 
 
+class ClaudeCodeProvider:
+    """Claude through the official `claude` program on this PC, which is signed in to my Claude subscription:
+    the questions count toward the plan's usage instead of costing API money. Slower (a few seconds a call)."""
+
+    KIND = "claude_code"
+
+    def __init__(self, conf, run=None):
+        import subprocess
+        self.conf = conf
+        self.id = conf["id"]
+        self.model = conf.get("model") or "haiku"
+        self.label = f"{self.id}:{self.model}"
+        self._run = run or subprocess.run
+
+    def call(self, system_blocks, user_content, schema, max_tokens=8000):
+        import os
+        import shutil
+        import tempfile
+        exe = shutil.which("claude") or str(Path.home() / ".local" / "bin" / "claude.exe")
+        system = "\n\n".join(b["text"] for b in system_blocks)
+        with tempfile.TemporaryDirectory() as tmp:           # an empty folder: no project files or memory are picked up
+            sysfile = Path(tmp) / "system.txt"
+            sysfile.write_text(system, encoding="utf-8")
+            cmd = [exe, "-p", "--output-format", "json", "--json-schema", json.dumps(schema), "--tools", "",
+                   "--no-session-persistence", "--disable-slash-commands", "--setting-sources", "",
+                   "--system-prompt-file", str(sysfile), "--model", self.model]
+            try:
+                done = self._run(cmd, input=user_content, capture_output=True, text=True, encoding="utf-8",
+                                 timeout=240, cwd=tmp, env={k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"})
+            except (OSError, ValueError) as e:
+                raise ProviderError(f"{self.id}: {e}")
+            except Exception as e:                           # timeout
+                raise ProviderError(f"{self.id}: {type(e).__name__}")
+        try:
+            data = json.loads(done.stdout)
+        except ValueError:
+            raise ProviderError(f"{self.id}: no JSON from claude (exit {done.returncode}): {(done.stderr or done.stdout)[:200]!r}")
+        if data.get("is_error") or data.get("structured_output") is None:
+            raise ProviderError(f"{self.id}: {str(data.get('result'))[:200]}")
+        u = data.get("usage") or {}
+        usage = {"input_tokens": (u.get("input_tokens") or 0) + (u.get("cache_creation_input_tokens") or 0),
+                 "output_tokens": u.get("output_tokens") or 0,
+                 "cache_read_tokens": u.get("cache_read_input_tokens") or 0, "cache_write_tokens": 0}
+        return json.dumps(data["structured_output"], ensure_ascii=False), usage, 0.0   # the subscription pays
+
+
 class OpenAICompatProvider:
     """Any /chat/completions API. Prompt caching blocks are flattened into one system message."""
 
@@ -192,6 +240,8 @@ class Router:
         pid = self.stages.get(stage, ANTHROPIC)
         if pid == ANTHROPIC or pid not in self.confs:
             return None
+        if self.confs[pid].get("kind") == ClaudeCodeProvider.KIND:
+            return ClaudeCodeProvider(self.confs[pid])        # signed in on this PC: no API key
         if not self.keys.get(pid):
             self.notes.append(f"{pid}: no API key; used Anthropic")
             return None

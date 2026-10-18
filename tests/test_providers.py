@@ -140,3 +140,25 @@ def test_daily_limit_falls_back(db, cfg):
     r.confs = {p["id"]: p for p in settings.get(db, "ai_providers")}
     assert r.json_call("gate", SYSTEM, "post", SCHEMA)[3] == "groq:m"
     assert r.json_call("gate", SYSTEM, "post", SCHEMA)[3] == "claude-test"
+
+
+def test_claude_code_provider_runs_the_cli_and_reads_structured_output():
+    import json as _json
+    from apartment_bot.providers import ClaudeCodeProvider
+
+    class Done:
+        returncode, stderr = 0, ""
+        stdout = _json.dumps({"is_error": False, "structured_output": {"a": 1},
+                              "usage": {"input_tokens": 10, "cache_creation_input_tokens": 90, "output_tokens": 5}})
+
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["cmd"], seen["kw"] = cmd, kw
+        return Done()
+
+    p = ClaudeCodeProvider({"id": "claude-code", "model": "haiku"}, run=fake_run)
+    text, usage, cost = p.call([{"type": "text", "text": "SYSTEM"}], "the question", {"type": "object"})
+    assert _json.loads(text) == {"a": 1} and usage["input_tokens"] == 100 and cost == 0.0
+    assert "--system-prompt-file" in seen["cmd"] and seen["kw"]["input"] == "the question"
+    assert seen["kw"]["env"].get("ANTHROPIC_API_KEY") is None        # the subscription, not an API key
