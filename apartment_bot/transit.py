@@ -5,6 +5,7 @@ the graph once). The planner runs locally on 127.0.0.1:8099 and is started on de
 coordinates with OpenStreetMap's Nominatim (cached in the database, one request a second).
 """
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -104,6 +105,8 @@ def geocode(db, text):
     precision = None
     if hit:
         precision = "street" if hit.get("type") in STREET_TYPES else "area"
+    else:
+        hit, precision = _photon(query)     # forgiving with spellings ("Benvenishti", "מלך כורש") where Nominatim is strict
     with db:
         db.execute("INSERT OR REPLACE INTO geocode_cache (query, lat, lon, precision, name, cached_at) VALUES (?,?,?,?,?,?)",
                    (key, float(hit["lat"]) if hit else None, float(hit["lon"]) if hit else None, precision,
@@ -111,26 +114,76 @@ def geocode(db, text):
     return (float(hit["lat"]), float(hit["lon"]), precision) if hit else None
 
 
+PHOTON = "https://photon.komoot.io/api/"
+PHOTON_STREET = {"house", "street", "bus_stop", "residential", "tertiary", "secondary", "primary", "living_street",
+                 "pedestrian", "unclassified", "service", "apartments", "building"}
+
+
+def _photon(query):
+    """(hit in Nominatim's shape, precision) from Photon, biased to the Tel Aviv area; (None, None) if nothing."""
+    url = PHOTON + "?" + urllib.parse.urlencode({"q": query.replace(", ישראל", ""), "limit": 1, "lat": 32.08, "lon": 34.79})
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+        data = json.loads(urllib.request.urlopen(req, timeout=20).read().decode("utf-8"))
+    except Exception:
+        return None, None
+    f = (data.get("features") or [None])[0]
+    if not f or f["properties"].get("countrycode", "IL") != "IL":
+        return None, None
+    lon, lat = f["geometry"]["coordinates"]
+    pr = f["properties"]
+    name = ", ".join(x for x in (pr.get("name"), pr.get("street"), pr.get("city")) if x)
+    precision = "street" if pr.get("type") in ("house", "street") or pr.get("osm_value") in PHOTON_STREET else "area"
+    return {"lat": lat, "lon": lon, "display_name": "photon: " + name}, precision
+
+
+CITY_HE = {"tel aviv": "תל אביב", "tel aviv-yafo": "תל אביב", "tel aviv-jaffa": "תל אביב", "jaffa": "יפו",
+           "ramat gan": "רמת גן", "givatayim": "גבעתיים", "bnei brak": "בני ברק", "holon": "חולון", "bat yam": "בת ים",
+           "herzliya": "הרצליה", "petah tikva": "פתח תקווה", "rishon lezion": "ראשון לציון", "ramat hasharon": "רמת השרון"}
+
+
+def _street_variants(street):
+    """Ways to write the street part that a geocoder understands: without "(...)", the word "רחוב", a corner
+    ("A/B", "A at B intersection", "A פינת B") reduced to its first street."""
+    s = re.sub(r"\(.*?\)", "", street).strip()
+    out = [s]
+    for sep in (r"\s*/\s*", r"\s+at\s+", r"\s+corner of\s+", r"\s*&\s*", r"\s+פינת\s+", r"\s+and\s+", r"\s+על\s+", r"\s+ליד\s+", r"\s+near\s+"):
+        first = re.split(sep, s, maxsplit=1, flags=re.I)[0]
+        out.append(first)
+    out = [re.sub(r"(intersection|junction|corner|street|st\.?)", "", x, flags=re.I).strip(" ,") for x in out]
+    out += [x[5:] for x in out if x.startswith("רחוב ")]
+    out += [re.sub(r"^rehov\s+", "", x, flags=re.I) for x in out]
+    return [x for x in dict.fromkeys(out) if x]
+
+
 def geocode_place(db, text):
-    """geocode(), trying simpler versions of a place text ("street, neighborhood, city" -> "street, city" ->
-    "neighborhood, city" -> "city"). A neighborhood or city hit is only 'area' precise."""
+    """geocode() for a place text "street, neighborhood, city", trying simpler versions. Only a hit for a version
+    that still has the street is 'street' precise; a neighborhood or city hit is 'area'."""
     parts = [x.strip() for x in (text or "").split(",") if x.strip()]
-    tries = [", ".join(parts)]
-    if parts and parts[0].startswith("רחוב "):
-        tries.append(", ".join([parts[0][5:]] + parts[1:]))
-    if len(parts) >= 3:
-        tries += [f"{parts[0]}, {parts[-1]}", f"{parts[0][5:] if parts[0].startswith('רחוב ') else parts[0]}, {parts[-1]}",
-                  ", ".join(parts[1:])]
-    if len(parts) >= 2:
-        tries.append(", ".join(parts[-2:]))
-        tries.append(parts[-1])
-    seen = set()
-    for i, t in enumerate(dict.fromkeys(tries)):
+    if not parts:
+        return None
+    city = parts[-1] if len(parts) >= 2 else ""
+    cities = [city, CITY_HE.get(city.lower(), "")] if city else [""]
+    street = parts[0]
+    if city and street.lower().startswith(city.lower() + ","):        # "Ramat Gan, Rehov X 60"
+        street = street[len(city) + 1:].strip()
+    street_tries = []
+    for st in _street_variants(street):
+        if len(parts) >= 3:
+            street_tries.append(", ".join([st] + parts[1:]))
+        for c in filter(None, cities):
+            street_tries.append(f"{st}, {c}")
+        if not city:
+            street_tries.append(st)
+    for t in dict.fromkeys(street_tries):
         hit = geocode(db, t)
         if hit:
-            lat, lon, precision = hit
-            first = parts[0][5:] if parts and parts[0].startswith("רחוב ") else (parts[0] if parts else "")
-            return (lat, lon, precision if first and t.startswith(first) or t.startswith("רחוב " + first) else "area")
+            return hit
+    for t in dict.fromkeys([", ".join(parts[1:]), city]):
+        if t:
+            hit = geocode(db, t)
+            if hit:
+                return (hit[0], hit[1], "area")
     return None
 
 

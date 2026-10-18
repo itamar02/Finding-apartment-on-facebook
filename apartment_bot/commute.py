@@ -170,7 +170,7 @@ def _estimate(db, user, router, post_id, place, d, model, from_text=None):
 
 
 def approved_without_estimate(db, user_id, destinations):
-    """Listings I approved, plus those the AI passed that nobody has closed, that lack an estimate for at least
+    """Listings I approved, plus those the AI passed or sent to review that nobody has closed, that lack an estimate for at least
     one destination (destinations: the list of names)."""
     names = [d for d in destinations if d]
     if not names:
@@ -180,7 +180,7 @@ def approved_without_estimate(db, user_id, destinations):
                                     (user_id, *APPROVED))]
     ids += [r[0] for r in db.execute(
         "SELECT a.post_id FROM post_analyses a LEFT JOIN post_status s ON s.post_id = a.post_id AND s.user_id = a.user_id"
-        " WHERE a.user_id = ? AND a.status = 'ok' AND a.final_decision = 'PASS'"
+        " WHERE a.user_id = ? AND a.status = 'ok' AND a.final_decision IN ('PASS', 'NEEDS_REVIEW')"
         " AND coalesce(s.status, '') NOT IN ('not_relevant', 'taken')"
         " AND a.id = (SELECT max(b.id) FROM post_analyses b WHERE b.post_id = a.post_id AND b.user_id = a.user_id AND b.status = 'ok')",
         (user_id,))]
