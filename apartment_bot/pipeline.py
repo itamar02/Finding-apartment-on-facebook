@@ -63,7 +63,7 @@ def _has_versions(db):
     return bool(db.execute("SELECT 1 FROM sqlite_master WHERE name = 'post_versions'").fetchone())
 
 
-def analyze_one(db, client, model, user, post, now=None, early_stop=False):
+def analyze_one(db, client, model, user, post, now=None, early_stop=False, gate_pre=None):
     """Analyze one post and store the result row. Returns the stored row as a dict.
 
     Order of work, cheapest first:
@@ -93,7 +93,8 @@ def analyze_one(db, client, model, user, post, now=None, early_stop=False):
     args = (client, model, user, post["text"], post["posted_at"], now.date().isoformat())
     try:
         if early_stop:
-            gate = ai_filter.analyze_post(*args, mode="gate")
+            # gate_pre: the gate answer already obtained together with other posts (one request for several)
+            gate = gate_pre or ai_filter.analyze_post(*args, mode="gate")
             _spend(spent, gate[2], gate[3])
             _label(row, gate[2])
             rejection = _gate_rejection(gate[0], user)
@@ -268,3 +269,33 @@ def _insert(db, row):
     with db:
         db.execute(f"INSERT INTO post_analyses ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
                    [row[c] for c in cols])
+
+
+def batch_gates(db, client, user, posts, size=10, now=None, should_stop=lambda: False):
+    """The gate answers for many posts, `size` per request, for a stage whose provider has a small request quota.
+
+    Returns {post_id: (parsed, raw_text, usage, cost)} in the shape analyze_one takes as gate_pre. Posts the code
+    rejects without any AI call are left out, and so is any post the model skipped or a chunk that failed: those
+    are asked about one by one as usual. Does nothing (returns {}) unless the gate stage uses another provider.
+    """
+    from .providers import ANTHROPIC
+    if not hasattr(client, "stages") or client.stages.get("gate", ANTHROPIC) == ANTHROPIC:
+        return {}
+    now = now or datetime.now().astimezone()
+    todo = [p for p in posts if not hard_rules.pre_ai_rejection(db, p, user, now)]
+    out = {}
+    for start in range(0, len(todo), size):
+        if should_stop():
+            break
+        chunk = todo[start:start + size]
+        try:
+            gates, usage, cost, label = ai_filter.analyze_gate_batch(
+                client, user, [(p["text"], p["posted_at"]) for p in chunk], now.date().isoformat())
+        except Exception:
+            continue
+        share = {k: v // len(chunk) for k, v in usage.items()}
+        for post, gate in zip(chunk, gates):
+            if gate is not None:
+                out[post["post_id"]] = (gate, json.dumps(gate), {**share, "model_label": label},
+                                        (cost or 0.0) / len(chunk))
+    return out

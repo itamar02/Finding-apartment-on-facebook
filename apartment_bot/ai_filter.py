@@ -459,3 +459,48 @@ a leaving tenant; an ad for a room in a hotel-like or hostel setting. Use "low" 
 ambiguous posts like these - a clear post gets "high" even when it is not the kind of listing \
 anyone wants, since a later stage and the code rules handle the decision.
 """
+
+# --- several posts in one gate request (for providers with a small request quota) ---------------------
+
+GATE_BATCH_SCHEMA = _obj({
+    "results": {"type": "array", "items": _obj({
+        "index": _INT,
+        "is_rental_offer": {"type": "boolean"},
+        "listing_type": _enum("whole_apartment", "roommate_search", "room_replacement", "sublet", "other"),
+        "confidence": _enum("high", "low"),
+    })},
+})
+
+GATE_BATCH_INSTRUCTION = """
+
+MODE: GATE, SEVERAL POSTS. Each post below has an index. For every post answer the three gate fields exactly \
+as you would for that post alone, in a "results" list with one entry per post and its "index". Judge each post \
+independently: never let one post influence another. Do not skip any post."""
+
+BATCH_POST_CHARS = 1500
+
+
+def analyze_gate_batch(client, user, items, today):
+    """The gate answer for several posts in ONE request. items: [(post_text, posted_at)].
+
+    Returns (gates, usage, cost, label): gates is a list aligned with items, each a gate dict
+    ({"is_rental_offer", "listing_type", "confidence"}) or None when the model left that post out or
+    answered it unusably (the caller then asks about that post alone). Needs a providers.Router.
+    """
+    system = [
+        {"type": "text", "text": SYSTEM_PROMPT},
+        {"type": "text", "text": TRIAGE_GUIDE},
+        {"type": "text", "text": GATE_GUIDE},
+        {"type": "text", "text": user_config_block(user), "cache_control": {"type": "ephemeral"}},
+    ]
+    parts = [f"Today's date: {today}"]
+    for i, (text, posted_at) in enumerate(items):
+        parts.append(f'<post index="{i}" posted="{posted_at or "unknown"}">\n{(text or "")[:BATCH_POST_CHARS]}\n</post>')
+    content = "\n\n".join(parts) + GATE_BATCH_INSTRUCTION
+    raw_text, usage, cost, label = client.json_call("gate", system, content, GATE_BATCH_SCHEMA)
+    gates = [None] * len(items)
+    for r in json.loads(raw_text).get("results", []):
+        i = r.get("index")
+        if isinstance(i, int) and 0 <= i < len(items) and gates[i] is None:
+            gates[i] = {k: r[k] for k in ("is_rental_offer", "listing_type", "confidence")}
+    return gates, usage, cost, label

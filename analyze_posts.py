@@ -19,6 +19,7 @@ from apartment_bot import ai_filter, db as dbmod, jobs, providers
 from apartment_bot.config import ConfigError, get_api_key, get_user, load_config
 from apartment_bot.display import facts_lines, term_safe
 from apartment_bot.pictures import download_pictures
+from apartment_bot import pipeline
 from apartment_bot.pipeline import analyze_one, pending_posts, recheck_stored
 from apartment_bot.report import build_entries, write_report
 
@@ -103,11 +104,15 @@ def _analyze(db, cfg, user, args, client, model, early_stop, posts):
                                            "cache_read_tokens": 0, "cache_write_tokens": 0}
     counts = {}
     skipped_by_code = 0
+    # A gate stage on a provider with a small request quota (e.g. a free tier) asks about 10 posts per request.
+    gates = pipeline.batch_gates(db, client, user, posts, should_stop=jobs.stop_requested) if early_stop else {}
+    if gates:
+        print(f"Gate answers for {len(gates)} posts obtained in batches of 10.")
     for i, post in enumerate(posts, 1):
         if jobs.stop_requested():
             print(f"Stopped on request after {i - 1} of {len(posts)} posts; each finished post is saved.")
             break
-        row = analyze_one(db, client, model, user, post, early_stop=early_stop)
+        row = analyze_one(db, client, model, user, post, early_stop=early_stop, gate_pre=gates.get(post["post_id"]))
         print(f"[{i}/{len(posts)}] post {post['post_id']}  {post['url']}")
         if row["status"] != "ok":
             print(f"    ERROR: {row['error']}\n")
