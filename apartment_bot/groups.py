@@ -56,8 +56,9 @@ def names(db, cfg=None):
 
 def set_selected(db, gid, selected):
     with db:
-        n = db.execute("UPDATE fb_groups SET selected = ?, updated_at = ? WHERE id = ?",
-                       (int(bool(selected)), now_iso(), gid)).rowcount
+        # Choosing a group means I'm in it now (the "not a member" flag may be from before I joined).
+        n = db.execute("UPDATE fb_groups SET selected = ?, is_member = CASE WHEN ? THEN 1 ELSE is_member END,"
+                       " updated_at = ? WHERE id = ?", (int(bool(selected)), int(bool(selected)), now_iso(), gid)).rowcount
     return bool(n)
 
 

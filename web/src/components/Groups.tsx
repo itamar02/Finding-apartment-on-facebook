@@ -56,7 +56,8 @@ export default function Groups() {
 
   async function toggle(g: Group) {
     const selected = !g.selected;
-    setGroups((prev) => prev.map((x) => (x.id === g.id ? { ...x, selected: selected ? 1 : 0 } : x)));
+    if (selected && g.is_member === 0 && !confirm("הקבוצה סומנה 'לא חבר/ה' כשנמצאה. כבר הצטרפת? הסריקה עובדת רק אם חשבון הפייסבוק של הבוט חבר בקבוצה.")) return;
+    setGroups((prev) => prev.map((x) => (x.id === g.id ? { ...x, selected: selected ? 1 : 0, is_member: selected ? 1 : x.is_member } : x)));
     try {
       await api.selectGroup(g.id, selected);
     } catch (e) {
@@ -112,7 +113,7 @@ export default function Groups() {
 
       {shown.map((g) => (
         <label key={g.id} className="group-row">
-          <input type="checkbox" checked={!!g.selected} onChange={() => toggle(g)} disabled={g.is_member === 0 && !g.selected} />
+          <input type="checkbox" checked={!!g.selected} onChange={() => toggle(g)} />
           <div className="grow">
             <div className="group-name" dir="auto">
               {g.name ?? g.id}
