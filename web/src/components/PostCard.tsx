@@ -99,6 +99,13 @@ export default function PostCard({ card }: { card: Card }) {
         </div>
       )}
 
+      {card.status?.note && card.status.status !== "meeting_scheduled" && (
+        <div className="status-note small" dir="auto">
+          {card.status.status === "needs_details" ? "צריך לברר: " : "📝 "}
+          {card.status.note}
+        </div>
+      )}
+
       <MeetingLine card={card} startEditing={askMeeting} onDone={() => setAskMeeting(false)} />
       <KeyLines card={card} />
 

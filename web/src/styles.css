@@ -1160,3 +1160,5 @@ button.badge {
 
 .commute-ok { color: var(--pass); }
 .commute-bad { color: var(--reject); }
+
+.status-note { margin: 4px 0; padding: 4px 8px; border-radius: 6px; background: var(--chip, rgba(127,127,127,.12)); }
