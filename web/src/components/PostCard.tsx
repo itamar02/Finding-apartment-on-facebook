@@ -11,15 +11,25 @@ import type { PricePoint } from "../api";
 
 /** Earlier prices of the same apartment (reposts), oldest first; a drop is highlighted. */
 export function PriceHistory({ points }: { points: PricePoint[] }) {
-  if (!points || points.length < 2) return null;
-  const last = points[points.length - 1].rent_ils ?? 0;
-  const before = points[points.length - 2].rent_ils ?? 0;
+  // Only the changes: the same price posted again many times says nothing (the reposts are listed on the card).
+  const prices = (points ?? []).map((p) => p.rent_ils).filter((r): r is number => r != null);
+  const changes = prices.filter((r, i) => i === 0 || r !== prices[i - 1]);
+  if (changes.length < 2) return null;
+  const last = changes[changes.length - 1];
+  const before = changes[changes.length - 2];
   return (
     <div className={"price-hist" + (last < before ? " drop" : "")}>
-      {last < before ? "↓ ירידת מחיר: " : "פורסמה שוב: "}
-      {points.map((p) => money(p.rent_ils)).join(" ← ")}
+      {last < before ? "↓ ירידת מחיר: " : "המחיר השתנה: "}
+      {changes.map((r) => money(r)).join(" ← ")}
     </div>
   );
+}
+
+/** 972533724550 -> 053-3724550: the number as it is written in the post (the link needs the international form). */
+function localNumber(n?: string): string {
+  if (!n) return "";
+  const local = n.startsWith("972") ? "0" + n.slice(3) : n;
+  return local.length === 10 ? `${local.slice(0, 3)}-${local.slice(3)}` : local.length === 9 ? `${local.slice(0, 2)}-${local.slice(2)}` : local;
 }
 
 export function ContactButton({ card }: { card: Card }) {
@@ -37,7 +47,7 @@ export function ContactButton({ card }: { card: Card }) {
         contact(card.post_id, a.url!, card.status);
       }}
     >
-      {a.kind === "whatsapp" ? (a.guessed ? "WhatsApp (ניחוש)" : "WhatsApp") : "פרופיל פייסבוק"}
+      {a.kind === "whatsapp" ? `WhatsApp ${localNumber(a.number)}${a.guessed ? " (ניחוש)" : ""}` : "פרופיל פייסבוק"}
     </button>
   );
 }
