@@ -54,7 +54,10 @@ export const DEFAULT_FILTERS: Filters = {
 function loadFilters(): Filters {
   try {
     const saved = localStorage.getItem("filters");
-    return saved ? { ...DEFAULT_FILTERS, ...JSON.parse(saved) } : DEFAULT_FILTERS;
+    if (!saved) return DEFAULT_FILTERS;
+    const f = { ...DEFAULT_FILTERS, ...JSON.parse(saved) };
+    // Posts the AI has not looked at yet may not even be apartments: they are never on from an old saved filter.
+    return { ...f, decision: (f.decision as string[]).filter((d) => d !== "PENDING") as Filters["decision"] };
   } catch {
     return DEFAULT_FILTERS;
   }
