@@ -241,3 +241,16 @@ def test_the_same_ad_in_several_groups_is_one_card(client, db):
     client.put("/api/posts/dup0/status", json={"status": "interested"}, headers=W)
     dups = [c for c in client.get("/api/posts?include_old=true&limit=100").json()["items"] if c["post_id"] in ("dup0", "dup1")]
     assert [c["post_id"] for c in dups] == ["dup0"]           # the one I gave a status stands for it
+
+
+def test_a_repost_with_slightly_different_text_is_the_same_card(client, db):
+    base = "אני משכירה חדר בדירת שותפים מעולה החל מה-1.11, פרישמן 65 תל אביב קומה 2, 2700 לחודש, שתי מרפסות ומטבח מאובזר"
+    with db:
+        db.execute("INSERT INTO posts (post_id, group_id, author, text, url, posted_at, first_seen_at) VALUES ('rp0','g1','Lilach',?, 'u0','2026-10-19T11:28+03:00','2026-10-19T11:28+03:00')", (base,))
+        db.execute("INSERT INTO posts (post_id, group_id, author, text, url, posted_at, first_seen_at) VALUES ('rp1','g2','Lilach',?, 'u1','2026-10-19T11:33+03:00','2026-10-19T11:33+03:00')",
+                   ("בעקבות ביטול, חזרה להיות רלוונטית! " + base,))
+        db.execute("INSERT INTO posts (post_id, group_id, author, text, url, posted_at, first_seen_at) VALUES ('rp2','g2','Someone else',?, 'u2','2026-10-19T11:34+03:00','2026-10-19T11:34+03:00')", (base + " גם אצלי",))
+    items = client.get("/api/posts?include_old=true&limit=200&decision=PENDING").json()["items"]
+    ids = [c["post_id"] for c in items if c["post_id"].startswith("rp")]
+    assert "rp1" in ids and "rp0" not in ids          # the same author's repost is one card
+    assert "rp2" in ids                                # another author is another ad

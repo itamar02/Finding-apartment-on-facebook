@@ -3,9 +3,11 @@
 Read-only over `posts` and `post_analyses` (the AI verdict is derived, never copied). Uses
 the same "latest successful analysis per post and user" rule as report.py.
 """
+import difflib
 import json
 from datetime import datetime, timedelta
 
+from .textnorm import normalize
 from . import groups as groups_mod, outreach, prices, settings, statuses
 from .contacts import contact_info
 from .db import EFFECTIVE_TEXT_SQL
@@ -124,9 +126,33 @@ def _merge_copies(cards):
     """The same ad posted in several groups (identical text) is one card: the one I gave a status, else the newest.
     card["copies"] lists the other posts (group, link, time) so nothing is lost."""
     from .hard_rules import text_fingerprint
+    # Identical text, or the same author with nearly the same text and no different rent (a repost with a line
+    # added or a comma moved). Union-find over those links.
+    parent = list(range(len(cards)))
+
+    def root(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    by_print, by_author = {}, {}
+    for i, c in enumerate(cards):
+        fp = text_fingerprint(c["text"] or "")
+        if fp in by_print:
+            parent[root(i)] = root(by_print[fp])
+        else:
+            by_print[fp] = i
+        if c.get("author"):
+            by_author.setdefault(c["author"], []).append(i)
+    for idx in by_author.values():
+        for a_pos, i in enumerate(idx):
+            for j in idx[a_pos + 1:]:
+                if root(i) != root(j) and _same_ad(cards[i], cards[j]):
+                    parent[root(j)] = root(i)
     groups = {}
-    for c in cards:
-        groups.setdefault(text_fingerprint(c["text"] or ""), []).append(c)
+    for i, c in enumerate(cards):
+        groups.setdefault(root(i), []).append(c)
     out = []
     for same in groups.values():
         if len(same) == 1:
@@ -139,6 +165,18 @@ def _merge_copies(cards):
                          for c in newest_first if c is not rep]
         out.append(rep)
     return out
+
+
+REPOST_SIMILARITY = 0.7
+
+
+def _same_ad(a, b):
+    """Two posts of one author that are the same apartment: nearly the same text and no different rent."""
+    ra, rb = (a["facts"] or {}).get("rent_ils"), (b["facts"] or {}).get("rent_ils")
+    if ra and rb and ra != rb:
+        return False
+    m = difflib.SequenceMatcher(None, normalize(a["text"] or ""), normalize(b["text"] or ""), autojunk=False)
+    return m.real_quick_ratio() >= REPOST_SIMILARITY and m.quick_ratio() >= REPOST_SIMILARITY and m.ratio() >= REPOST_SIMILARITY
 
 
 def commutes(db, user_id, post_id):
