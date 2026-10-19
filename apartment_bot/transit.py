@@ -163,7 +163,19 @@ def geocode_place(db, text):
     if not parts:
         return None
     city = parts[-1] if len(parts) >= 2 else ""
-    cities = [city, CITY_HE.get(city.lower(), "")] if city else [""]
+    city_he = CITY_HE.get(city.lower(), city if re.search("[֐-׿]", city) else "")
+    cities = [city_he, city] if city else [""]          # the Hebrew name first: "Tel Aviv" alone matches the district
+
+    def in_city(t):
+        """The hit really is in that city (not e.g. in Herzliya, which is in the "Tel Aviv district")."""
+        if not city_he:
+            return True
+        row = db.execute("SELECT name FROM geocode_cache WHERE query = ?", (" ".join(t.split()),)).fetchone()
+        name = re.sub("[־–‐-]", " ", (row[0] if row else "") or "")   # "תל־אביב–יפו" -> "תל אביב יפו"
+        if name.startswith("photon: "):
+            return city_he in name
+        parts_ = [x.strip() for x in name.split(",")]
+        return any(x.startswith(city_he) for x in parts_ if not x.startswith(("נפת", "מחוז")))
     street = parts[0]
     if city and street.lower().startswith(city.lower() + ","):        # "Ramat Gan, Rehov X 60"
         street = street[len(city) + 1:].strip()
@@ -175,10 +187,15 @@ def geocode_place(db, text):
             street_tries.append(f"{st}, {c}")
         if not city:
             street_tries.append(st)
+    rough = None
     for t in dict.fromkeys(street_tries):
         hit = geocode(db, t)
-        if hit:
-            return hit
+        if hit and in_city(t):
+            if hit[2] == "street":
+                return hit
+            rough = rough or hit           # e.g. a square or a park: keep looking for the street itself
+    if rough:
+        return (rough[0], rough[1], "area")
     for t in dict.fromkeys([", ".join(parts[1:]), city]):
         if t:
             hit = geocode(db, t)
