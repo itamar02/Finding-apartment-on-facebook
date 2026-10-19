@@ -285,6 +285,14 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
 
     LATER_THAN_DETAILS = ("contacted", "awaiting_reply", "meeting_scheduled", "visited", "top_candidate")
 
+    def _keep_details(db, post_id):
+        """Before a status replaces "needs details", its note moves to the separate "to find out" line."""
+        cur = statuses.current(db, uid, post_id)
+        if cur and cur["status"] == "needs_details":
+            with db:
+                db.execute("INSERT OR IGNORE INTO post_details_needed (post_id, user_id, note, updated_at) VALUES (?,?,?,?)",
+                           (post_id, uid, (cur["note"] or "").strip() or "פרטים", statuses.now_iso()))
+
     @app.put("/api/posts/{post_id}/status")
     def put_status(post_id: str, body: StatusIn, db=Depends(get_db)):
         if body.status == "needs_details":
@@ -297,6 +305,8 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
                                " VALUES (?,?,?,?)", (post_id, uid, note, statuses.now_iso()))
             if cur and cur["status"] in LATER_THAN_DETAILS:
                 return _status_result(db, post_id, cur)
+        elif body.status in LATER_THAN_DETAILS:
+            _keep_details(db, post_id)
         try:
             old, _ = statuses.set_status(db, uid, post_id, body.status, body.note, "human")
         except statuses.StatusError as e:
@@ -397,6 +407,7 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
     @app.post("/api/posts/{post_id}/contacted")
     def contacted(post_id: str, db=Depends(get_db)):
         """Called when the WhatsApp / contact button is tapped; the app offers Undo."""
+        _keep_details(db, post_id)        # "needs details" + "contacted": both stay visible
         try:
             old, _ = statuses.set_status(db, uid, post_id, "contacted", None, "human")
         except statuses.StatusError as e:

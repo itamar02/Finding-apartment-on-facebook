@@ -267,3 +267,10 @@ def test_needs_details_does_not_undo_contacted(client):
     # on a fresh listing it is still a status of its own
     r = client.put("/api/posts/1002/status", json={"status": "needs_details", "note": "קומה"}, headers=W).json()
     assert r["status"]["status"] == "needs_details"
+
+
+def test_contacted_does_not_erase_needs_details(client):
+    client.put("/api/posts/1001/status", json={"status": "needs_details", "note": "קומה"}, headers=W)
+    client.post("/api/posts/1001/contacted", headers=W)        # the WhatsApp button
+    card = client.get("/api/posts/1001").json()
+    assert card["status"]["status"] == "contacted" and card["details_needed"] == "קומה"
