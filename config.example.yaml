@@ -117,7 +117,8 @@ users:
       # "A/B" in the name = either place. It is an estimate: the model has no live timetable.
       # Several destinations are allowed (work, the sea...): each gets its own estimate.
       # Per destination: name, address (optional), max_minutes (red when over; blank = no limit),
-      # arrive_by "08:30" (when you need to be there; blank = mid-morning), days: weekdays | daily | weekend.
+      # depart_at "08:30" (when you leave home) or arrive_by "09:00" (when you need to be there; blank = mid-morning),
+      # days: weekdays | daily | weekend.
       # An empty list turns the estimate off. Also editable in the app: Settings.
       destinations: []
       #  - name: Azrieli Center, Tel Aviv

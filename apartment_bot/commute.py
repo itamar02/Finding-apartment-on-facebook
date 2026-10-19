@@ -61,7 +61,7 @@ def settings(user):
         name = (d.get("name") or d.get("address") or "").strip()
         dests = [{"name": name, "address": d.get("address"), "max_minutes": c.get("absolute_max_minutes")}] if name else []
     out = [{"name": d["name"].strip(), "address": (d.get("address") or "").strip(), "max_minutes": d.get("max_minutes"),
-            "arrive_by": d.get("arrive_by"), "days": d.get("days") or "weekdays",
+            "arrive_by": d.get("arrive_by"), "depart_at": d.get("depart_at"), "days": d.get("days") or "weekdays",
             "lat": d.get("lat"), "lon": d.get("lon")} for d in dests if (d.get("name") or "").strip()]
     return {"destinations": out, "model": c.get("model") or DEFAULT_MODEL}
 
@@ -97,7 +97,7 @@ def check(db, cfg, user, router, post_id, force=False):
     have = {c["destination"]: c for c in card["commutes"]}
     for d in s["destinations"]:
         old = have.get(d["name"])
-        if (old and not force and old["arrive_by"] == d["arrive_by"] and old["days"] == d["days"]
+        if (old and not force and old["arrive_by"] == d["arrive_by"] and old.get("depart_at") == d["depart_at"] and old["days"] == d["days"]
                 and old["from"] == from_text):      # a changed address (or time) is a new question
             continue
         if _estimate(db, user, router, post_id, place, d, s["model"], from_text) == "broad":
@@ -123,7 +123,7 @@ def _estimate_transit(db, user, post_id, place, d):
     if not transit.available():
         return None
     try:
-        r = transit.estimate(db, place, d, d["arrive_by"], d["days"])
+        r = transit.estimate(db, place, d, d["arrive_by"], d["days"], depart_at=d["depart_at"])
     except transit.TransitError:
         return None
     if not r:
@@ -135,10 +135,10 @@ def _estimate_transit(db, user, post_id, place, d):
         db.execute(
             "INSERT OR REPLACE INTO post_commute (post_id, user_id, destination, from_place, minutes, within_limit,"
             " route, uses_scooter, scooter_minutes, confidence, model, cost_usd, checked_at, station, walk_minutes,"
-            " arrive_by, days) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " arrive_by, days, depart_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (post_id, user["id"], d["name"], place, r["minutes"], ok, r["route"], int(r["scooter"]),
              r["scooter_minutes"], "high" if r["precision"] == "street" else "medium", "timetable", 0.0,
-             statuses.now_iso(), r["station"], r["walk_minutes"], d["arrive_by"], d["days"]))
+             statuses.now_iso(), r["station"], r["walk_minutes"], d["arrive_by"], d["days"], d["depart_at"]))
     return True
 
 
@@ -146,7 +146,8 @@ def _estimate(db, user, router, post_id, place, d, model, from_text=None):
     done = _estimate_transit(db, user, post_id, from_text or place, d)
     if done:
         return done
-    when = (f"Arrive by {d['arrive_by']} on {DAY_TEXT.get(d['days'], d['days'])}." if d["arrive_by"]
+    when = (f"Leave home at {d['depart_at']} on {DAY_TEXT.get(d['days'], d['days'])}." if d["depart_at"] else
+            f"Arrive by {d['arrive_by']} on {DAY_TEXT.get(d['days'], d['days'])}." if d["arrive_by"]
             else f"Plan for {DAY_TEXT.get(d['days'], d['days'])}, mid-morning, outside rush hour.")
     content = (f"Destination: {d['name']}" + (f" ({d['address']})" if d["address"] and d["address"] != d["name"] else "")
                + f"\nApartment location: {place}\n{when}\n"
@@ -161,12 +162,12 @@ def _estimate(db, user, router, post_id, place, d, model, from_text=None):
         db.execute(
             "INSERT OR REPLACE INTO post_commute (post_id, user_id, destination, from_place, minutes, within_limit,"
             " route, uses_scooter, scooter_minutes, confidence, model, cost_usd, checked_at, station, walk_minutes,"
-            " arrive_by, days) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " arrive_by, days, depart_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (post_id, user["id"], d["name"], from_text or r["from_place"], minutes, ok, r["route"].strip(),
              int(r["uses_scooter"]), r["scooter_minutes"] if r["uses_scooter"] else None, r["confidence"],
              model, cost, statuses.now_iso(), station,
              r["walk_minutes"] if r["walk_minutes"] and r["walk_minutes"] > 0 and station else None,
-             d["arrive_by"], d["days"]))
+             d["arrive_by"], d["days"], d["depart_at"]))
 
 
 def approved_without_estimate(db, user_id, destinations):

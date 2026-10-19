@@ -93,7 +93,9 @@ def check_value(path, value):
                     item["max_minutes"] = int(float(d["max_minutes"]))
                 except (TypeError, ValueError):
                     raise EditError(f"{path}: the maximum minutes must be a number")
-            if d.get("arrive_by"):
+            if d.get("depart_at"):
+                item["depart_at"] = str(d["depart_at"]).strip()
+            elif d.get("arrive_by"):
                 item["arrive_by"] = str(d["arrive_by"]).strip()
             for k in ("lat", "lon"):
                 if d.get(k) not in (None, ""):

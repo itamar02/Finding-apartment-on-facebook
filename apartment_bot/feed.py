@@ -186,7 +186,7 @@ def commutes(db, user_id, post_id):
              "within_limit": None if r["within_limit"] is None else bool(r["within_limit"]),
              "route": r["route"], "scooter": bool(r["uses_scooter"]), "scooter_minutes": r["scooter_minutes"],
              "confidence": r["confidence"], "from": r["from_place"], "station": r["station"],
-             "walk_minutes": r["walk_minutes"], "arrive_by": r["arrive_by"], "days": r["days"],
+             "walk_minutes": r["walk_minutes"], "arrive_by": r["arrive_by"], "depart_at": r["depart_at"], "days": r["days"],
              "checked_at": r["checked_at"]}
             for r in db.execute("SELECT * FROM post_commute WHERE post_id = ? AND user_id = ? ORDER BY rowid",
                                 (post_id, user_id))]

@@ -215,7 +215,7 @@ export default function KeyLines({ card, onChanged }: { card: Card; onChanged?: 
                       <b className={c.within_limit === false ? "commute-bad" : c.within_limit ? "commute-ok" : ""}>~{c.minutes} דק׳</b>
                       {" ל"}
                       {c.destination}
-                      {c.arrive_by && <span className="small muted"> (עד {c.arrive_by})</span>}
+                      {c.depart_at ? <span className="small muted"> (יציאה {c.depart_at})</span> : c.arrive_by && <span className="small muted"> (עד {c.arrive_by})</span>}
                       {c.scooter && <span title="כולל קורקינט שכור"> 🛴{c.scooter_minutes ? ` ${c.scooter_minutes} דק׳` : ""}</span>}
                       <span className="small muted"> · הערכה{c.confidence === "low" ? " לא בטוחה" : ""}</span>
                     </>

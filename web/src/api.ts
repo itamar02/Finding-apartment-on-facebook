@@ -94,6 +94,7 @@ export interface Commute {
   station: string | null;
   walk_minutes: number | null;
   arrive_by: string | null;
+  depart_at?: string | null;
   days: string | null;
   destination: string;
   from: string | null;

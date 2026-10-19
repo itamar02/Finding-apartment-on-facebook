@@ -46,9 +46,10 @@ def validate_destinations(dests):
             raise ConfigError(f"{where}.name must be a non-empty text")
         if d.get("max_minutes") is not None and (isinstance(d["max_minutes"], bool) or not isinstance(d["max_minutes"], (int, float)) or d["max_minutes"] <= 0):
             raise ConfigError(f"{where}.max_minutes must be a positive number or blank")
-        t = d.get("arrive_by")
-        if t is not None and not (isinstance(t, str) and re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", t)):
-            raise ConfigError(f"{where}.arrive_by must look like 08:30 or be blank")
+        for key in ("arrive_by", "depart_at"):
+            t = d.get(key)
+            if t is not None and not (isinstance(t, str) and re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", t)):
+                raise ConfigError(f"{where}.{key} must look like 08:30 or be blank")
         for k in ("lat", "lon"):
             if d.get(k) is not None and (isinstance(d[k], bool) or not isinstance(d[k], (int, float))):
                 raise ConfigError(f"{where}.{k} must be a number or blank")

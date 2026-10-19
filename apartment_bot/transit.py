@@ -219,11 +219,11 @@ def next_date(days, today=None):
 
 
 _QUERY = """
-query($from: InputCoordinates!, $to: InputCoordinates!, $date: String!, $time: String!) {
-  plan(from: $from, to: $to, date: $date, time: $time, arriveBy: true, numItineraries: 3,
+query($from: InputCoordinates!, $to: InputCoordinates!, $date: String!, $time: String!, $arriveBy: Boolean!) {
+  plan(from: $from, to: $to, date: $date, time: $time, arriveBy: $arriveBy, numItineraries: 3,
        transportModes: [{mode: TRANSIT}, {mode: %s}]) {
     itineraries {
-      duration
+      duration endTime
       legs { mode duration distance from { name } to { name } route { shortName longName } }
     }
   }
@@ -243,10 +243,10 @@ def _gql(query, variables):
     return (out["data"]["plan"] or {}).get("itineraries") or []
 
 
-def _plan(origin, dest, when, bike):
+def _plan(origin, dest, when, bike, arrive=True):
     return _gql(_QUERY % ("BICYCLE" if bike else "WALK"),
                 {"from": {"lat": origin[0], "lon": origin[1]}, "to": {"lat": dest[0], "lon": dest[1]},
-                 "date": when.strftime("%Y-%m-%d"), "time": when.strftime("%H:%M")})
+                 "date": when.strftime("%Y-%m-%d"), "time": when.strftime("%H:%M"), "arriveBy": arrive})
 
 
 def _describe(it):
@@ -270,7 +270,7 @@ def _describe(it):
     return " → ".join(parts), station, before or None
 
 
-def estimate(db, place, dest, arrive_by, days):
+def estimate(db, place, dest, arrive_by, days, depart_at=None):
     """Best trip from the place text to the destination (a dict with name/address/lat/lon): {minutes, route,
     station, walk_minutes, scooter, scooter_minutes, precision}, or None when nothing is found.
     Raises TransitError when the planner is down."""
@@ -284,14 +284,18 @@ def estimate(db, place, dest, arrive_by, days):
     if origin[2] != "street":          # only the middle of a city or neighborhood: a route would be meaningless
         return {"broad": True}
     ensure_server()
-    when = datetime.combine(next_date(days), datetime.strptime(arrive_by or "10:00", "%H:%M").time())
+    # Leaving at a set time, or arriving by one (default: arrive mid-morning).
+    when = datetime.combine(next_date(days), datetime.strptime(depart_at or arrive_by or "10:00", "%H:%M").time())
+    arrive = not depart_at
     best = None
     for bike in (False, True):
-        for it in _plan(origin[:2], target[:2], when, bike):
+        for it in _plan(origin[:2], target[:2], when, bike, arrive):
             uses_bike = any(leg["mode"] == "BICYCLE" for leg in it["legs"])
             if bike and not uses_bike:
                 continue
-            mins = round(it["duration"] / 60) + (SCOOTER_PENALTY_MIN if uses_bike else 0)
+            # Leaving at a set time: the trip counts from then, waiting at home included.
+            trip = it["duration"] if arrive else max(it["duration"], (it["endTime"] / 1000 - when.astimezone().timestamp()))
+            mins = round(trip / 60) + (SCOOTER_PENALTY_MIN if uses_bike else 0)
             if best is None or mins < best[0]:
                 best = (mins, it, uses_bike)
     if not best:

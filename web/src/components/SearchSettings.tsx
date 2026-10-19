@@ -10,6 +10,7 @@ interface Dest {
   address?: string;
   max_minutes?: number | string | null;
   arrive_by?: string | null;
+  depart_at?: string | null;
   days?: string;
 }
 
@@ -130,8 +131,12 @@ export default function SearchSettings() {
               <input inputMode="numeric" value={d.max_minutes ?? ""} onChange={(e) => setDest(i, { max_minutes: e.target.value === "" ? null : e.target.value })} />
             </label>
             <label className="field">
-              <span className="label">להגיע עד שעה</span>
-              <input type="time" value={d.arrive_by ?? ""} onChange={(e) => setDest(i, { arrive_by: e.target.value || null })} />
+              <span className="label">לצאת בשעה</span>
+              <input type="time" value={d.depart_at ?? ""} onChange={(e) => setDest(i, { depart_at: e.target.value || null, arrive_by: null })} />
+            </label>
+            <label className="field">
+              <span className="label">או: להגיע עד</span>
+              <input type="time" value={d.depart_at ? "" : d.arrive_by ?? ""} onChange={(e) => setDest(i, { arrive_by: e.target.value || null, depart_at: null })} />
             </label>
           </div>
           <select value={d.days ?? "weekdays"} onChange={(e) => setDest(i, { days: e.target.value })}>

@@ -438,6 +438,10 @@ MIGRATIONS = [
         PRIMARY KEY (post_id, user_id)
     );
     """,
+    # 19 -> 20: a trip can be planned by when I leave home instead of when I have to arrive.
+    """
+    ALTER TABLE post_commute ADD COLUMN depart_at TEXT;
+    """,
 ]
 
 # A post's current text: its latest version if it was edited, else the text first seen.
