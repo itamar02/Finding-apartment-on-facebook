@@ -160,9 +160,14 @@ class Scheduler:
                     db.close()
                 if job == "analyze" or (job == "all" and conf.get("analyze", True)):
                     self.state["step"] = "analyze"
-                    limit = int(self._limit_override if self._limit_override is not None else conf.get("analyze_limit") or 0)
-                    code, out = self.runner(["analyze_posts.py", "--user", self.user_id,
-                                             *(["--limit", str(limit)] if limit > 0 else ["--all"])])
+                    if job == "all" and self._limit_override is None and conf.get("analyze_new_only", True):
+                        # A scan round analyzes everything this round brought in, with no cap; the old backlog
+                        # is left for the analyze button (which asks how many).
+                        args = ["--all", "--seen-since", started]
+                    else:
+                        limit = int(self._limit_override if self._limit_override is not None else conf.get("analyze_limit") or 0)
+                        args = ["--limit", str(limit)] if limit > 0 else ["--all"]
+                    code, out = self.runner(["analyze_posts.py", "--user", self.user_id, *args])
                     result.append("הופסק" if self._cancel.is_set() else (_last_line(out) or f"analyze exit {code}"))
             if not self._cancel.is_set():
                 self.state["step"] = "notify"

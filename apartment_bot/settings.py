@@ -37,6 +37,8 @@ DEFAULTS = {
     # Background scan -> analyze -> notify (app server).
     "scheduler": {"enabled": False, "interval_minutes": 30, "quiet_hours": {"start": "01:00", "end": "07:00"},
                   "analyze": True,
+                  # A scan round analyzes all the posts it brought in (no cap); analyze_limit is for the backlog.
+                  "analyze_new_only": True,
                   # At most this many posts go to the AI per run, newest first (0 = all of them). Keeps a
                   # button press or a scheduled run from paying for a whole backlog at once.
                   "analyze_limit": 200},

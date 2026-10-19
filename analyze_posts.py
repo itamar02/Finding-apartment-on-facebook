@@ -55,6 +55,7 @@ def main():
     group.add_argument("--all", action="store_true", help="analyze all pending posts")
     ap.add_argument("--post-id", action="append", help="restrict to these post IDs (repeatable)")
     ap.add_argument("--user", help="user id from config.yaml (default: the only user)")
+    ap.add_argument("--seen-since", help="only posts first seen at or after this time (ISO), e.g. this scan's new ones")
     ap.add_argument("--force", action="store_true", help="re-analyze even if already analyzed")
     ap.add_argument("--report", type=Path,
                     help="also write a report of this run's posts (.json = JSON, else text); "
@@ -72,7 +73,7 @@ def main():
         print(f"Database migrated (backup: {Path(b).name})")
 
     posts = pending_posts(db, user["id"], limit=None if args.all else args.limit,
-                          post_ids=args.post_id, force=args.force)
+                          post_ids=args.post_id, force=args.force, seen_since=args.seen_since)
     if not posts:
         print("Nothing to analyze.")
         _recheck(db, user)
@@ -119,6 +120,12 @@ def _analyze(db, cfg, user, args, client, model, early_stop, posts):
             counts["ERROR"] = counts.get("ERROR", 0) + 1
             continue
         counts[row["final_decision"]] = counts.get(row["final_decision"], 0) + 1
+        if row["final_decision"] in ("PASS", "NEEDS_REVIEW"):   # the trip to my destinations, right away
+            try:
+                from apartment_bot import commute
+                commute.check(db, cfg, user, client, post["post_id"])
+            except Exception as e:
+                print(f"    trip estimate failed: {e}")
         if row.get("facts_json") is None:   # rejected by a code rule before the AI call
             skipped_by_code += 1
             print(f"    REJECT by code rule '{row['final_rule']}' (no AI call, no cost): "

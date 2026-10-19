@@ -252,8 +252,8 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
         return card
 
     def _commute_if_approved(post_id, status):
-        """An approved listing gets the stronger model's travel-time estimate, in the background."""
-        if status in commute.APPROVED:
+        """A listing I keep (any status but closed) gets its trip estimate, in the background."""
+        if status and status not in ("not_relevant", "taken"):
             commute.check_in_background(cfg, get_user(cfg, uid), lambda: dbmod.connect(db_path, check_same_thread=False),
                                         _router, [post_id])
 

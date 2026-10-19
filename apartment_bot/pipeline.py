@@ -9,7 +9,7 @@ from .db import EFFECTIVE_TEXT_SQL
 _USAGE_KEYS = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens")
 
 
-def pending_posts(db, user_id, limit=None, post_ids=None, force=False):
+def pending_posts(db, user_id, limit=None, post_ids=None, force=False, seen_since=None):
     """Posts without a successful analysis for this user and pipeline version, newest first."""
     # Listings the human rejected by hand never need the AI.
     # An edited post (post_versions) is analyzed with its current text, and again after an edit.
@@ -30,6 +30,9 @@ def pending_posts(db, user_id, limit=None, post_ids=None, force=False):
         if not post_ids:   # listings an AI chat already sorted don't need the AI bot (named post ids still do)
             sql += AI_CHAT_COVERED
             params.append(user_id)
+    if seen_since:   # only posts the scan brought in since then (e.g. this automatic round)
+        sql += " AND p.first_seen_at >= ?"
+        params.append(seen_since)
     if post_ids:
         sql += f" AND p.post_id IN ({','.join('?' * len(post_ids))})"
         params += list(post_ids)
