@@ -254,3 +254,16 @@ def test_a_repost_with_slightly_different_text_is_the_same_card(client, db):
     ids = [c["post_id"] for c in items if c["post_id"].startswith("rp")]
     assert "rp1" in ids and "rp0" not in ids          # the same author's repost is one card
     assert "rp2" in ids                                # another author is another ad
+
+
+def test_needs_details_does_not_undo_contacted(client):
+    client.post("/api/posts/1001/contacted", headers=W)
+    r = client.put("/api/posts/1001/status", json={"status": "needs_details", "note": "מחיר"}, headers=W).json()
+    assert r["status"]["status"] == "contacted"
+    card = client.get("/api/posts/1001").json()
+    assert card["status"]["status"] == "contacted" and card["details_needed"] == "מחיר"
+    client.delete("/api/posts/1001/details-needed", headers=W)
+    assert client.get("/api/posts/1001").json()["details_needed"] is None
+    # on a fresh listing it is still a status of its own
+    r = client.put("/api/posts/1002/status", json={"status": "needs_details", "note": "קומה"}, headers=W).json()
+    assert r["status"]["status"] == "needs_details"

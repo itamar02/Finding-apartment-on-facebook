@@ -72,6 +72,7 @@ export interface Card {
   price: { rent: number | null; total: number | null; mine: boolean; ai_rent: number | null };
   bills: Bills;
   price_note: string | null;
+  details_needed: string | null;
   commutes: Commute[];
   meeting: { at: string; address: string | null } | null;
   partial_facts: boolean;
@@ -434,6 +435,7 @@ export const api = {
     call<{ meeting: Card["meeting"]; status: MyStatus | null }>(`/api/posts/${id}/meeting`, send("PUT", { at, address })),
   setPrice: (id: string, rent: number | null, bills: "included" | "excluded" | null, note: string | null) =>
     call<{ price: Card["price"]; bills: Bills; note: string | null }>(`/api/posts/${id}/price`, send("PUT", { rent, bills, note })),
+  clearDetails: (id: string) => call<{ status: MyStatus | null }>(`/api/posts/${id}/details-needed`, send("DELETE")),
   checkCommute: (id: string) => call<{ commutes: Commute[] }>(`/api/posts/${id}/commute`, send("POST", {})),
   addToCalendar: (id: string, v: { date: string; time: string; address: string | null; minutes: number; notes: string | null }) =>
     call<{ event_link: string | null; post_id: string }>(`/api/posts/${id}/calendar`, send("POST", v)),

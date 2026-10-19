@@ -283,14 +283,36 @@ def create_app(cfg, user_id=None, db_path=dbmod.DB_PATH, web_dist=WEB_DIST, secu
     def _status_result(db, post_id, old):
         return {"previous": old, "status": statuses.current(db, uid, post_id)}
 
+    LATER_THAN_DETAILS = ("contacted", "awaiting_reply", "meeting_scheduled", "visited", "top_candidate")
+
     @app.put("/api/posts/{post_id}/status")
     def put_status(post_id: str, body: StatusIn, db=Depends(get_db)):
+        if body.status == "needs_details":
+            # What I still have to find out is kept on its own; a listing I already contacted stays "contacted".
+            note = (body.note or "").strip()
+            cur = statuses.current(db, uid, post_id)
+            with db:
+                if note:
+                    db.execute("INSERT OR REPLACE INTO post_details_needed (post_id, user_id, note, updated_at)"
+                               " VALUES (?,?,?,?)", (post_id, uid, note, statuses.now_iso()))
+            if cur and cur["status"] in LATER_THAN_DETAILS:
+                return _status_result(db, post_id, cur)
         try:
             old, _ = statuses.set_status(db, uid, post_id, body.status, body.note, "human")
         except statuses.StatusError as e:
             raise HTTPException(400, str(e))
         _commute_if_approved(post_id, body.status)
         return _status_result(db, post_id, old)
+
+    @app.delete("/api/posts/{post_id}/details-needed")
+    def clear_details_needed(post_id: str, db=Depends(get_db)):
+        """I found out what I needed: the "to find out" line goes away (the status stays)."""
+        with db:
+            db.execute("DELETE FROM post_details_needed WHERE post_id = ? AND user_id = ?", (post_id, uid))
+            cur = statuses.current(db, uid, post_id)
+        if cur and cur["status"] == "needs_details":
+            statuses.set_status(db, uid, post_id, "interested", None, "human")
+        return {"status": statuses.current(db, uid, post_id)}
 
     @app.post("/api/posts/{post_id}/status/undo")
     def undo_status(post_id: str, db=Depends(get_db)):

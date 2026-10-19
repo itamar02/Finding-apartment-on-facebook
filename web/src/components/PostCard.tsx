@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { api } from "../api";
 import type { Card } from "../api";
 import { useApp } from "../App";
 import { age, DECISION_LABEL, factChips, isApproved, verdictOf, VERDICT_ONLY } from "../format";
@@ -57,7 +58,9 @@ export default function PostCard({ card }: { card: Card }) {
   const { change } = useStatusActions();
   const [expanded, setExpanded] = useState(false);
   const [picking, setPicking] = useState(false);
-  const [askMeeting, setAskMeeting] = useState(false); // right after choosing "meeting scheduled": ask when
+  const [askMeeting, setAskMeeting] = useState(false);
+  // What I still have to find out; a needs-details status from before the separate field counts too.
+  const [details, setDetails] = useState<string | null>(card.details_needed ?? (card.status?.status === "needs_details" ? card.status.note : null)); // right after choosing "meeting scheduled": ask when
   const decision = card.ai?.decision ?? "PENDING";
   const mine = card.status?.status;
   const liked = isApproved(mine);
@@ -99,10 +102,30 @@ export default function PostCard({ card }: { card: Card }) {
         </div>
       )}
 
-      {card.status?.note && card.status.status !== "meeting_scheduled" && (
+      {details && (
+        <div className="status-note small row" dir="auto">
+          <span className="grow">צריך לברר: {details}</span>
+          <button
+            className="icon small-icon"
+            title="בירורתי"
+            aria-label="בירורתי"
+            onClick={async () => {
+              try {
+                await api.clearDetails(card.post_id);
+                setDetails(null);
+                app.toast({ text: "סומן כבורר" });
+              } catch (e) {
+                app.fail(e);
+              }
+            }}
+          >
+            ✓
+          </button>
+        </div>
+      )}
+      {card.status?.note && !["meeting_scheduled", "needs_details"].includes(card.status.status) && (
         <div className="status-note small" dir="auto">
-          {card.status.status === "needs_details" ? "צריך לברר: " : "📝 "}
-          {card.status.note}
+          📝 {card.status.note}
         </div>
       )}
 

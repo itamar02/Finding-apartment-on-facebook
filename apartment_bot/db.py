@@ -427,6 +427,17 @@ MIGRATIONS = [
         cached_at TEXT NOT NULL
     );
     """,
+    # 18 -> 19: what I still have to find out about a listing. It sits next to the status, so marking
+    # "needs details" on a listing I already contacted does not undo "contacted".
+    """
+    CREATE TABLE post_details_needed (
+        post_id    TEXT NOT NULL,
+        user_id    TEXT NOT NULL,
+        note       TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (post_id, user_id)
+    );
+    """,
 ]
 
 # A post's current text: its latest version if it was edited, else the text first seen.
