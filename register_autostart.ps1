@@ -10,9 +10,9 @@ if ($Remove) {
     exit 0
 }
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
-$python = (Get-Command pythonw.exe -ErrorAction Stop).Source
-$action = New-ScheduledTaskAction -Execute $python -Argument "app_server.py" -WorkingDirectory $here
+# run_app.cmd keeps the server running (it restarts it if it stops) and logs to app_server.log.
+$action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument ("/c start ""ApartmentBot app"" /min """ + (Join-Path $here "run_app.cmd") + """") -WorkingDirectory $here
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero)
 Register-ScheduledTask -TaskName $name -Action $action -Trigger $trigger -Settings $settings -Force | Out-Null
-Write-Host "Created '$name': app_server.py starts when you log in. Remove it with -Remove."
+Write-Host "Created '$name': run_app.cmd starts (minimized) when you log in. Remove it with -Remove."
